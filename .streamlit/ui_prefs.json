@@ -1,0 +1,14 @@
+{
+  "view_mode": "Completo",
+  "task_page_size": 8,
+  "telemetry_page_size": 10,
+  "task_page": 1,
+  "telemetry_page": 1,
+  "task_search": "",
+  "task_estados_sel": [
+    "In Progress"
+  ],
+  "task_prioridades_sel": [
+    "Alta"
+  ]
+}

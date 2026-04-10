@@ -86,5 +86,6 @@ Plataforma recomendada: Streamlit Community Cloud.
 Nota: Vercel no es una buena opción para apps Streamlit porque Streamlit requiere un proceso persistente con WebSockets.
 
 Preferencias UI persistentes:
+
 - Se guardan automáticamente en `.streamlit/ui_prefs.json`.
 - Puedes resetearlas desde el botón `Restablecer preferencias` en la barra lateral.
