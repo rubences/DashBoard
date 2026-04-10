@@ -1,0 +1,20 @@
+parametro,valor,descripcion
+wheelbase_delta_mm,12,Aumentar estabilidad longitudinal y reducir pitching en T1
+rake_delta_deg,-0.5,Agudizar entrada en curva para compensar el wheelbase largo
+anti_squat_target_min_pct,108,Ventana inferior objetivo
+anti_squat_target_max_pct,112,Ventana superior objetivo
+swingarm_pivot_delta_mm,2,Incrementar anti-squat
+track_length_m,3835,Longitud del circuito
+main_straight_m,994,Recta principal
+curves_right,9,Curvas a derechas
+curves_left,5,Curvas a izquierdas
+air_temp_base_c,26,Condición base proyectada
+humidity_base_pct,57,Condición base proyectada
+wind_base_kmh,6,Condición base proyectada
+front_compound_base,SC2,Soporte de frenada
+rear_compound_base,SC2,Evitar cold-tear en inicio
+front_cold_pressure_bar,1.6,Base frontal
+rear_cold_pressure_bar,1.35,Base trasera
+front_hot_target_bar,2.0,Objetivo retorno a box
+rear_hot_target_bar,1.7,Objetivo retorno a box
+target_lap_time,1:26.500,Tiempo estimado objetivo

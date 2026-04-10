@@ -1,0 +1,13 @@
+sesion,run,vuelta,tipo_vuelta,neumatico_front,neumatico_front_estado,neumatico_rear,neumatico_rear_estado,presion_front_cold_bar,presion_rear_cold_bar,presion_front_hot_target_bar,presion_rear_hot_target_bar,track_temp_c,air_temp_c,humidity_pct,wind_kmh,lap_time_s,sector_1_s,sector_2_s,sector_3_s,velocidad_punta_kmh,temp_neumatico_right_c,temp_neumatico_center_c,temp_neumatico_left_c,anti_squat_pct,wheelbase_delta_mm,rake_delta_deg,swingarm_pivot_delta_mm,mapa_potencia,traction_control_lvl,engine_brake_lvl,anti_wheelie_lvl,target_lap_time,objetivo_sesion
+FP1,Run 1,1,outlap,SC2,Nuevo,SC2,Nuevo,1.6,1.35,2.0,1.7,34,26,57,6,88.4,27.9,31.2,29.3,229,86,82,73,108,12,-0.5,2,A,2,4,3,1:26.500,Shakedown y barrido de pista
+FP1,Run 2,2,push,SC2,Usado,SC2,Usado,1.6,1.35,2.0,1.7,35,26,57,6,87.95,27.7,31.05,29.2,231,88,84,74,109,12,-0.5,2,A,2,4,3,1:26.500,Chequeo de gearing y limitador
+FP1,Run 3,3,evaluation,SC2,Usado,SC2,Usado,1.6,1.35,2.0,1.7,35,26,57,6,87.7,27.6,30.98,29.12,232,89,85,74,110,12,-0.5,2,A,2,4,3,1:26.500,Primera evaluación anti-squat
+Practice,Run 1,4,push,SC2,Nuevo,SC1,Nuevo,1.6,1.3,2.0,1.67,47,28,55,6,87.1,27.3,30.75,29.05,233,92,88,76,110,12,-0.5,2,A,2,4,3,1:26.500,Evaluación térmica alta con SC1 trasero
+Practice,Run 2,5,consistency,SC2,Usado,SC1,Usado,1.6,1.3,2.0,1.68,49,29,54,6,86.95,27.2,30.68,29.07,234,95,90,77,111,12,-0.5,2,A,2,4,3,1:26.500,Termometría infrarroja y análisis del flanco derecho
+Practice,Run 3,6,time_attack,SC1,Nuevo,SC1,Nuevo,1.65,1.35,2.0,1.68,50,29,54,6,86.8,27.15,30.6,29.05,235,96,91,78,111,12,-0.5,2,A,2,4,3,1:26.500,Time attack oficial
+FP2,Run 1,7,race_sim,SC2,Usado,SC1,Usado,1.6,1.35,2.0,1.7,28,20,60,6,87.25,27.25,30.8,29.2,232,89,85,75,110,12,-0.5,2,A,2,4,3,1:26.500,Simulación de carrera y drop-off
+FP2,Run 2,8,race_sim,SC2,Usado,SC1,Usado,1.6,1.35,2.0,1.7,29,20,60,6,87.05,27.1,30.72,29.23,233,90,86,75,110,12,-0.5,2,A,2,4,3,1:26.500,Consumo y calibración EBC
+Q2,Run 1,9,time_attack,SC1,Nuevo,SC1,Nuevo,1.65,1.35,2.0,1.67,46,29,52,6,86.35,27.0,30.4,28.95,236,96,92,78,111,12,-0.5,2,A,2,4,3,1:26.500,Primer intento clasificación
+Q2,Run 2,10,time_attack,SC1,Nuevo,SC1,Nuevo,1.65,1.35,2.0,1.68,47,29,52,6,86.2,26.95,30.35,28.9,237,97,93,79,112,12,-0.5,2,A,2,4,3,1:26.500,Segundo intento clasificación
+Race,Race,11,race_pace,SC2,Nuevo,SC1,Nuevo,1.6,1.35,2.0,1.65,45,30,53,6,86.9,27.1,30.55,29.25,234,94,90,76,108,12,-0.5,2,A,2,4,3,1:26.500,Primer stint controlado
+Race,Race,12,race_pace,SC2,Nuevo,SC1,Nuevo,1.6,1.35,2.0,1.65,46,30,53,6,87.15,27.2,30.62,29.33,233,98,94,77,108,12,-0.5,2,A,2,4,3,1:26.500,Protección del flanco derecho

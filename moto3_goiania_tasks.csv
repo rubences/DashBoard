@@ -1,0 +1,30 @@
+sesion,rol,tarea,estado,prioridad
+FP1,Piloto,Mantener trazada conservadora inicial y barrer suciedad,Done,Alta
+FP1,Piloto,Indicar punto de corte del limitador en 6ª,In Progress,Alta
+FP1,Piloto,Evaluar estabilidad longitudinal en T1,Todo,Alta
+FP1,Ingeniero de Pista,Coordinar plan de 3 tandas cortas,Done,Alta
+FP1,Ingeniero de Pista,Decidir reposicionamiento del eje trasero +12 mm si hay pitching,Todo,Alta
+FP1,Telemétrico,"Registrar temperaturas, sensores y recorrido suspensión",In Progress,Alta
+FP1,Jefe de Mecánicos,"Verificar frenos, sensores y torque",Done,Alta
+FP1,Técnico de Neumáticos,Salida con SC2/SC2 y control cold pressure,Done,Alta
+Practice,Piloto,Gestionar grip con SC1 y cuidar flanco derecho,In Progress,Alta
+Practice,Piloto,Ejecutar vuelta rápida de clasificación directa,Todo,Alta
+Practice,Ingeniero de Pista,Correlacionar sectores y validar tracción,In Progress,Alta
+Practice,Telemétrico,Termometría infrarroja del SC1 trasero,Todo,Alta
+Practice,Jefe de Mecánicos,Quick swap y ajuste fino de suspensiones,Todo,Media
+Practice,Técnico de Neumáticos,Evaluar SC1 trasero en alta temperatura,In Progress,Alta
+FP2,Piloto,Simulación de carrera con depósito lleno,Todo,Alta
+FP2,Ingeniero de Pista,Analizar consistencia y caída final de rendimiento,Todo,Alta
+FP2,Telemétrico,Registrar consumo y calibración final de engine brake,Todo,Media
+FP2,Jefe de Mecánicos,Preparar moto para tanda larga,Todo,Media
+FP2,Técnico de Neumáticos,Reutilizar gomas usadas de forma controlada,Todo,Media
+Q2,Piloto,Buscar rebufo y vuelta perfecta,Todo,Alta
+Q2,Ingeniero de Pista,Definir ventana de salida y tráfico,Todo,Alta
+Q2,Telemétrico,Monitorizar sectores y velocidad punta,Todo,Alta
+Q2,Jefe de Mecánicos,Cambio rápido de caucho,Todo,Alta
+Q2,Técnico de Neumáticos,Montar SC1 nuevo con warmers a 90C,Todo,Alta
+Race,Piloto,Evitar abusar del flanco derecho en los 10 primeros giros,Todo,Alta
+Race,Ingeniero de Pista,Cruzar referencias por sector y vigilar degradación rival,Todo,Alta
+Race,Telemétrico,Anotar variables ambientales y alimentar la base de datos de Goiânia,Todo,Alta
+Race,Jefe de Mecánicos,"Protocolo de parrilla: suspensiones, torque, retirar equipamiento",Todo,Alta
+Race,Técnico de Neumáticos,Asegurar mínimos FIM: 1.65 tras / 1.80 del y documentar meteo,Todo,Alta
