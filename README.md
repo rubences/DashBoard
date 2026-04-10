@@ -30,6 +30,10 @@ Dashboard técnico para análisis de telemetría, setup y operación por rol dur
   - selección de sesión de referencia
   - deltas de KPIs clave
   - gráfico comparativo de métricas
+- Modo de visualización:
+  - Completo: todas las visualizaciones y análisis
+  - Ejecutivo: vista resumida, enfocada en KPIs y decisión rápida
+  - conserva preferencias durante la sesión (modo, paginación y filtros)
 - Mapa del circuito por localización:
   - trazado aproximado con puntos de curva
   - interacción para colorear vueltas por tiempo, run o sector dominante
@@ -43,10 +47,12 @@ Dashboard técnico para análisis de telemetría, setup y operación por rol dur
   - progreso de completitud
   - filtros rápidos por estado y prioridad
   - búsqueda por texto
+  - paginación de resultados filtrados
   - exportación de tareas filtradas a CSV y Excel (.xlsx) multi-hoja
     - Tareas_Filtradas
     - Resumen_Operativo
     - KPIs_Sesion
+- Tabla de telemetría detallada paginada (en modo Completo)
 
 ## Ejecutar en local
 
@@ -78,4 +84,3 @@ Plataforma recomendada: Streamlit Community Cloud.
 6. Deploy
 
 Nota: Vercel no es una buena opción para apps Streamlit porque Streamlit requiere un proceso persistente con WebSockets.
-

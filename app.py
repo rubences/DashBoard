@@ -39,6 +39,14 @@ def missing_columns(df, required_cols):
     return [col for col in required_cols if col not in df.columns]
 
 
+def paginate_df(df, page, page_size):
+    if df.empty:
+        return df
+    start = (page - 1) * page_size
+    end = start + page_size
+    return df.iloc[start:end]
+
+
 @st.cache_data
 def load_data():
     df_telemetry = pd.read_csv(TELEMETRY_CSV)
@@ -319,6 +327,19 @@ if not sesiones_disponibles:
     st.error("No hay sesiones disponibles en el CSV de telemetría.")
     st.stop()
 
+if "view_mode" not in st.session_state:
+    st.session_state.view_mode = "Completo"
+if "task_page_size" not in st.session_state:
+    st.session_state.task_page_size = 8
+if "telemetry_page_size" not in st.session_state:
+    st.session_state.telemetry_page_size = 10
+if "task_page" not in st.session_state:
+    st.session_state.task_page = 1
+if "telemetry_page" not in st.session_state:
+    st.session_state.telemetry_page = 1
+if "task_search" not in st.session_state:
+    st.session_state.task_search = ""
+
 with st.sidebar:
     st.title("🏍️ Moto3 Goiânia 2026")
     st.markdown("---")
@@ -335,6 +356,11 @@ with st.sidebar:
 
     compare_options = ["Ninguna"] + [s for s in sesiones_disponibles if s != sesion]
     compare_session = st.selectbox("Comparar contra", compare_options, index=0)
+
+    st.markdown("### Modo de vista")
+    view_mode = st.radio("Perfil", ["Completo", "Ejecutivo"], key="view_mode")
+    task_page_size = st.slider("Filas por página (tareas)", min_value=5, max_value=30, step=1, key="task_page_size")
+    telemetry_page_size = st.slider("Filas por página (telemetría)", min_value=5, max_value=30, step=1, key="telemetry_page_size")
 
     st.markdown("### Interacción del circuito")
     circuit_color_mode = st.selectbox(
@@ -555,106 +581,108 @@ with col_right2:
 # ============================================================
 # GRÁFICOS — FILA 3: Mapas electrónicos + Compuestos
 # ============================================================
+if view_mode == "Completo":
+    col_left3, col_right3 = st.columns(2)
 
-col_left3, col_right3 = st.columns(2)
-
-with col_left3:
-    fig_maps = go.Figure()
-    if not dff.empty:
-        fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["traction_control_lvl"], mode="lines+markers", name="TC"))
-        fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["engine_brake_lvl"], mode="lines+markers", name="EBC"))
-        fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["anti_wheelie_lvl"], mode="lines+markers", name="AWC"))
-    fig_maps.update_layout(
-        title=f"Mapas electrónicos por vuelta — {sesion}",
-        template="plotly_white", xaxis_title="Vuelta", yaxis_title="Nivel"
-    )
-    st.plotly_chart(fig_maps, width='stretch')
-
-with col_right3:
-    if not dff.empty:
-        compound_df = (
-            dff.groupby(["run", "neumatico_front", "neumatico_rear"], as_index=False)
-               .size()
-               .rename(columns={"size": "conteo"})
+    with col_left3:
+        fig_maps = go.Figure()
+        if not dff.empty:
+            fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["traction_control_lvl"], mode="lines+markers", name="TC"))
+            fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["engine_brake_lvl"], mode="lines+markers", name="EBC"))
+            fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["anti_wheelie_lvl"], mode="lines+markers", name="AWC"))
+        fig_maps.update_layout(
+            title=f"Mapas electrónicos por vuelta — {sesion}",
+            template="plotly_white", xaxis_title="Vuelta", yaxis_title="Nivel"
         )
-        fig_compound = px.bar(
-            compound_df, x="run", y="conteo", color="neumatico_rear",
-            pattern_shape="neumatico_front",
-            title=f"Compuestos por run — {sesion}",
-            hover_data=["neumatico_front", "neumatico_rear"]
-        )
-        fig_compound.update_layout(template="plotly_white", xaxis_title="Run", yaxis_title="Registros")
-    else:
-        fig_compound = go.Figure()
-        fig_compound.update_layout(title="Sin datos")
-    st.plotly_chart(fig_compound, width='stretch')
+        st.plotly_chart(fig_maps, width='stretch')
+
+    with col_right3:
+        if not dff.empty:
+            compound_df = (
+                dff.groupby(["run", "neumatico_front", "neumatico_rear"], as_index=False)
+                .size()
+                .rename(columns={"size": "conteo"})
+            )
+            fig_compound = px.bar(
+                compound_df, x="run", y="conteo", color="neumatico_rear",
+                pattern_shape="neumatico_front",
+                title=f"Compuestos por run — {sesion}",
+                hover_data=["neumatico_front", "neumatico_rear"]
+            )
+            fig_compound.update_layout(template="plotly_white", xaxis_title="Run", yaxis_title="Registros")
+        else:
+            fig_compound = go.Figure()
+            fig_compound.update_layout(title="Sin datos")
+        st.plotly_chart(fig_compound, width='stretch')
+else:
+    st.caption("Modo Ejecutivo activo: se ocultan gráficos secundarios (mapas y compuestos) para una lectura más rápida.")
 
 st.markdown("---")
 
 # ============================================================
 # ANÁLISIS AVANZADO
 # ============================================================
+if view_mode == "Completo":
+    st.subheader("🔬 Análisis avanzado")
+    adv1, adv2 = st.columns(2)
 
-st.subheader("🔬 Análisis avanzado")
-adv1, adv2 = st.columns(2)
+    with adv1:
+        if not dff.empty:
+            fig_scatter = px.scatter(
+                dff,
+                x="temp_neumatico_right_c",
+                y="lap_time_s",
+                color="run",
+                size="velocidad_punta_kmh",
+                hover_data=["vuelta", "sector_1_s", "sector_2_s", "sector_3_s"],
+                title="Relación temperatura derecha vs tiempo de vuelta",
+            )
+            fig_scatter.update_layout(template="plotly_white", xaxis_title="Temp flanco derecho (°C)", yaxis_title="Lap time (s)")
+        else:
+            fig_scatter = go.Figure()
+            fig_scatter.update_layout(title="Sin datos")
+        st.plotly_chart(fig_scatter, width="stretch")
 
-with adv1:
-    if not dff.empty:
-        fig_scatter = px.scatter(
-            dff,
-            x="temp_neumatico_right_c",
-            y="lap_time_s",
+    with adv2:
+        corr_cols = [
+            "lap_time_s",
+            "velocidad_punta_kmh",
+            "temp_neumatico_right_c",
+            "presion_rear_hot_target_bar",
+            "anti_squat_pct",
+            "track_temp_c",
+        ]
+        available_corr_cols = [col for col in corr_cols if col in dff.columns]
+        corr_df = dff[available_corr_cols].dropna() if not dff.empty and available_corr_cols else pd.DataFrame()
+        if not corr_df.empty and len(corr_df) > 1:
+            fig_corr = px.imshow(
+                corr_df.corr(numeric_only=True),
+                text_auto=True,
+                color_continuous_scale="RdBu",
+                origin="lower",
+                title="Matriz de correlación (sesión)",
+                zmin=-1,
+                zmax=1,
+            )
+            fig_corr.update_layout(template="plotly_white")
+        else:
+            fig_corr = go.Figure()
+            fig_corr.update_layout(title="Sin datos suficientes para correlación")
+        st.plotly_chart(fig_corr, width="stretch")
+
+    hist_df = dff[["lap_time_s", "run"]].dropna() if not dff.empty else pd.DataFrame()
+    if not hist_df.empty:
+        fig_hist = px.histogram(
+            hist_df,
+            x="lap_time_s",
             color="run",
-            size="velocidad_punta_kmh",
-            hover_data=["vuelta", "sector_1_s", "sector_2_s", "sector_3_s"],
-            title="Relación temperatura derecha vs tiempo de vuelta",
+            barmode="overlay",
+            nbins=12,
+            title="Distribución de tiempos de vuelta por run",
+            opacity=0.7,
         )
-        fig_scatter.update_layout(template="plotly_white", xaxis_title="Temp flanco derecho (°C)", yaxis_title="Lap time (s)")
-    else:
-        fig_scatter = go.Figure()
-        fig_scatter.update_layout(title="Sin datos")
-    st.plotly_chart(fig_scatter, width="stretch")
-
-with adv2:
-    corr_cols = [
-        "lap_time_s",
-        "velocidad_punta_kmh",
-        "temp_neumatico_right_c",
-        "presion_rear_hot_target_bar",
-        "anti_squat_pct",
-        "track_temp_c",
-    ]
-    available_corr_cols = [col for col in corr_cols if col in dff.columns]
-    corr_df = dff[available_corr_cols].dropna() if not dff.empty and available_corr_cols else pd.DataFrame()
-    if not corr_df.empty and len(corr_df) > 1:
-        fig_corr = px.imshow(
-            corr_df.corr(numeric_only=True),
-            text_auto=True,
-            color_continuous_scale="RdBu",
-            origin="lower",
-            title="Matriz de correlación (sesión)",
-            zmin=-1,
-            zmax=1,
-        )
-        fig_corr.update_layout(template="plotly_white")
-    else:
-        fig_corr = go.Figure()
-        fig_corr.update_layout(title="Sin datos suficientes para correlación")
-    st.plotly_chart(fig_corr, width="stretch")
-
-hist_df = dff[["lap_time_s", "run"]].dropna() if not dff.empty else pd.DataFrame()
-if not hist_df.empty:
-    fig_hist = px.histogram(
-        hist_df,
-        x="lap_time_s",
-        color="run",
-        barmode="overlay",
-        nbins=12,
-        title="Distribución de tiempos de vuelta por run",
-        opacity=0.7,
-    )
-    fig_hist.update_layout(template="plotly_white", xaxis_title="Lap time (s)", yaxis_title="Frecuencia")
-    st.plotly_chart(fig_hist, width="stretch")
+        fig_hist.update_layout(template="plotly_white", xaxis_title="Lap time (s)", yaxis_title="Frecuencia")
+        st.plotly_chart(fig_hist, width="stretch")
 
 st.markdown("---")
 
@@ -733,17 +761,29 @@ else:
     estado_opts = sorted(tasks_table["estado"].dropna().unique().tolist())
     prioridad_opts = sorted(tasks_table["prioridad"].dropna().unique().tolist())
 
+    if "task_estados_sel" not in st.session_state:
+        st.session_state.task_estados_sel = estado_opts
+    if "task_prioridades_sel" not in st.session_state:
+        st.session_state.task_prioridades_sel = prioridad_opts
+
+    st.session_state.task_estados_sel = [e for e in st.session_state.task_estados_sel if e in estado_opts]
+    st.session_state.task_prioridades_sel = [p for p in st.session_state.task_prioridades_sel if p in prioridad_opts]
+    if not st.session_state.task_estados_sel:
+        st.session_state.task_estados_sel = estado_opts
+    if not st.session_state.task_prioridades_sel:
+        st.session_state.task_prioridades_sel = prioridad_opts
+
     estados_sel = f1.multiselect(
         "Estado",
         options=estado_opts,
-        default=estado_opts,
+        key="task_estados_sel",
     )
     prioridades_sel = f2.multiselect(
         "Prioridad",
         options=prioridad_opts,
-        default=prioridad_opts,
+        key="task_prioridades_sel",
     )
-    search_text = f3.text_input("Buscar tarea", value="", placeholder="Ej: presión, limitador, tracción")
+    search_text = f3.text_input("Buscar tarea", placeholder="Ej: presión, limitador, tracción", key="task_search")
 
     tasks_filtered = tasks_table[
         tasks_table["estado"].isin(estados_sel) & tasks_table["prioridad"].isin(prioridades_sel)
@@ -753,7 +793,25 @@ else:
             tasks_filtered["tarea"].str.contains(search_text.strip(), case=False, na=False)
         ]
 
-    st.dataframe(tasks_filtered, width="stretch", hide_index=True)
+    total_filtered = len(tasks_filtered)
+    task_total_pages = max(1, math.ceil(total_filtered / task_page_size))
+    st.session_state.task_page = min(max(int(st.session_state.task_page), 1), task_total_pages)
+    pcol1, pcol2 = st.columns([1, 4])
+    current_task_page = int(
+        pcol1.number_input(
+            "Página tareas",
+            min_value=1,
+            max_value=task_total_pages,
+            step=1,
+            key="task_page",
+        )
+    )
+    tasks_visible = paginate_df(tasks_filtered, current_task_page, task_page_size)
+    start_row = (current_task_page - 1) * task_page_size + (1 if total_filtered > 0 else 0)
+    end_row = min(current_task_page * task_page_size, total_filtered)
+    pcol2.caption(f"Mostrando {start_row}-{end_row} de {total_filtered} tareas filtradas")
+
+    st.dataframe(tasks_visible, width="stretch", hide_index=True)
 
     csv_data = tasks_filtered.to_csv(index=False).encode("utf-8")
 
@@ -804,12 +862,43 @@ else:
     )
 
     st.markdown("**Checklist por estado (solo lectura):**")
-    for _, row in tasks_filtered.iterrows():
+    for _, row in tasks_visible.iterrows():
         st.checkbox(
             f"[{row['estado']}] ({row['prioridad']}) {row['tarea']}",
             value=row["estado"] == "Done",
             disabled=True,
         )
+
+if view_mode == "Completo":
+    st.markdown("---")
+    st.subheader("🧾 Telemetría detallada (paginada)")
+    visible_cols = [
+        "sesion", "run", "vuelta", "lap_time_s", "sector_1_s", "sector_2_s", "sector_3_s",
+        "velocidad_punta_kmh", "temp_neumatico_right_c", "presion_rear_hot_target_bar", "anti_squat_pct",
+    ]
+    table_cols = [col for col in visible_cols if col in dff.columns]
+    detailed_df = dff[table_cols].sort_values(["vuelta", "run"]) if table_cols else pd.DataFrame()
+    if detailed_df.empty:
+        st.caption("No hay datos de telemetría para mostrar en tabla.")
+    else:
+        telem_total = len(detailed_df)
+        telem_pages = max(1, math.ceil(telem_total / telemetry_page_size))
+        st.session_state.telemetry_page = min(max(int(st.session_state.telemetry_page), 1), telem_pages)
+        t1, t2 = st.columns([1, 4])
+        current_telem_page = int(
+            t1.number_input(
+                "Página telemetría",
+                min_value=1,
+                max_value=telem_pages,
+                step=1,
+                key="telemetry_page",
+            )
+        )
+        telem_visible = paginate_df(detailed_df, current_telem_page, telemetry_page_size)
+        start_telem = (current_telem_page - 1) * telemetry_page_size + 1
+        end_telem = min(current_telem_page * telemetry_page_size, telem_total)
+        t2.caption(f"Mostrando {start_telem}-{end_telem} de {telem_total} registros")
+        st.dataframe(telem_visible, width="stretch", hide_index=True)
 
 st.markdown("---")
 
