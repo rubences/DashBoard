@@ -6,9 +6,14 @@
   "telemetry_page": 1,
   "task_search": "",
   "task_estados_sel": [
-    "In Progress"
+    "Todo"
   ],
   "task_prioridades_sel": [
     "Alta"
-  ]
+  ],
+  "selected_role": "Jefe de Mecánicos",
+  "selected_session": "Race",
+  "selected_compare_session": "Ninguna",
+  "circuit_color_mode": "Tiempo de vuelta",
+  "selected_lap": 11
 }

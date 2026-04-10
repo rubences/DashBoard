@@ -361,6 +361,11 @@ if "_prefs_loaded" not in st.session_state:
     st.session_state.task_search = str(prefs.get("task_search", ""))
     st.session_state.task_estados_sel = prefs.get("task_estados_sel", []) if isinstance(prefs.get("task_estados_sel", []), list) else []
     st.session_state.task_prioridades_sel = prefs.get("task_prioridades_sel", []) if isinstance(prefs.get("task_prioridades_sel", []), list) else []
+    st.session_state.selected_role = str(prefs.get("selected_role", ""))
+    st.session_state.selected_session = str(prefs.get("selected_session", ""))
+    st.session_state.selected_compare_session = str(prefs.get("selected_compare_session", "Ninguna"))
+    st.session_state.circuit_color_mode = str(prefs.get("circuit_color_mode", "Tiempo de vuelta"))
+    st.session_state.selected_lap = prefs.get("selected_lap", None)
     st.session_state._prefs_loaded = True
 
 with st.sidebar:
@@ -368,17 +373,29 @@ with st.sidebar:
     st.markdown("---")
 
     default_rol = "Ingeniero de Pista" if "Ingeniero de Pista" in roles else roles[0]
-    rol = st.selectbox("Rol", roles, index=roles.index(default_rol))
+    saved_rol = st.session_state.get("selected_role", default_rol)
+    if saved_rol not in roles:
+        saved_rol = default_rol
+    rol = st.selectbox("Rol", roles, index=roles.index(saved_rol))
+    st.session_state.selected_role = rol
 
     default_sesion = "Practice" if "Practice" in sesiones_disponibles else sesiones_disponibles[0]
+    saved_sesion = st.session_state.get("selected_session", default_sesion)
+    if saved_sesion not in sesiones_disponibles:
+        saved_sesion = default_sesion
     sesion = st.selectbox(
         "Sesión",
         sesiones_disponibles,
-        index=sesiones_disponibles.index(default_sesion)
+        index=sesiones_disponibles.index(saved_sesion)
     )
+    st.session_state.selected_session = sesion
 
     compare_options = ["Ninguna"] + [s for s in sesiones_disponibles if s != sesion]
-    compare_session = st.selectbox("Comparar contra", compare_options, index=0)
+    saved_compare = st.session_state.get("selected_compare_session", "Ninguna")
+    if saved_compare not in compare_options:
+        saved_compare = "Ninguna"
+    compare_session = st.selectbox("Comparar contra", compare_options, index=compare_options.index(saved_compare))
+    st.session_state.selected_compare_session = compare_session
 
     st.markdown("### Modo de vista")
     view_mode = st.radio("Perfil", ["Completo", "Ejecutivo"], key="view_mode")
@@ -392,21 +409,30 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("### Interacción del circuito")
+    color_options = ["Tiempo de vuelta", "Run", "Sector dominante"]
+    saved_color_mode = st.session_state.get("circuit_color_mode", "Tiempo de vuelta")
+    if saved_color_mode not in color_options:
+        saved_color_mode = "Tiempo de vuelta"
     circuit_color_mode = st.selectbox(
         "Colorear vueltas por",
-        ["Tiempo de vuelta", "Run", "Sector dominante"],
-        index=0,
+        color_options,
+        index=color_options.index(saved_color_mode),
     )
+    st.session_state.circuit_color_mode = circuit_color_mode
 
     dff_preview = df_telemetry[df_telemetry["sesion"] == sesion].copy()
     available_laps = sorted(dff_preview["vuelta"].dropna().astype(int).unique().tolist())
     selected_lap = None
     if available_laps:
+        saved_lap = st.session_state.get("selected_lap", available_laps[0])
+        if saved_lap not in available_laps:
+            saved_lap = available_laps[0]
         selected_lap = st.select_slider(
             "Resaltar vuelta",
             options=available_laps,
-            value=available_laps[0],
+            value=saved_lap,
         )
+    st.session_state.selected_lap = selected_lap
 
     st.markdown("---")
     st.caption("Datos: telemetría, tareas y setup CSV")
@@ -989,6 +1015,11 @@ prefs_to_save = {
     "task_search": st.session_state.get("task_search", ""),
     "task_estados_sel": st.session_state.get("task_estados_sel", []),
     "task_prioridades_sel": st.session_state.get("task_prioridades_sel", []),
+    "selected_role": st.session_state.get("selected_role", ""),
+    "selected_session": st.session_state.get("selected_session", ""),
+    "selected_compare_session": st.session_state.get("selected_compare_session", "Ninguna"),
+    "circuit_color_mode": st.session_state.get("circuit_color_mode", "Tiempo de vuelta"),
+    "selected_lap": st.session_state.get("selected_lap", None),
 }
 if st.session_state.get("_last_saved_prefs") != prefs_to_save:
     save_ui_prefs(prefs_to_save)
