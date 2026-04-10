@@ -531,9 +531,44 @@ else:
     p1.metric("Completadas", f"{done_count}/{total_count}")
     p2.progress(progress, text=f"Progreso operativo: {progress * 100:.0f}%")
 
-    st.dataframe(tasks_table, width="stretch", hide_index=True)
+    st.markdown("**Filtros rápidos de tareas**")
+    f1, f2, f3 = st.columns([1, 1, 2])
+    estado_opts = sorted(tasks_table["estado"].dropna().unique().tolist())
+    prioridad_opts = sorted(tasks_table["prioridad"].dropna().unique().tolist())
+
+    estados_sel = f1.multiselect(
+        "Estado",
+        options=estado_opts,
+        default=estado_opts,
+    )
+    prioridades_sel = f2.multiselect(
+        "Prioridad",
+        options=prioridad_opts,
+        default=prioridad_opts,
+    )
+    search_text = f3.text_input("Buscar tarea", value="", placeholder="Ej: presión, limitador, tracción")
+
+    tasks_filtered = tasks_table[
+        tasks_table["estado"].isin(estados_sel) & tasks_table["prioridad"].isin(prioridades_sel)
+    ].copy()
+    if search_text.strip():
+        tasks_filtered = tasks_filtered[
+            tasks_filtered["tarea"].str.contains(search_text.strip(), case=False, na=False)
+        ]
+
+    st.dataframe(tasks_filtered, width="stretch", hide_index=True)
+
+    csv_data = tasks_filtered.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="Descargar tareas filtradas (CSV)",
+        data=csv_data,
+        file_name=f"tareas_{sesion}_{rol}.csv".replace(" ", "_"),
+        mime="text/csv",
+        width="content",
+    )
+
     st.markdown("**Checklist por estado (solo lectura):**")
-    for _, row in tasks_table.iterrows():
+    for _, row in tasks_filtered.iterrows():
         st.checkbox(
             f"[{row['estado']}] ({row['prioridad']}) {row['tarea']}",
             value=row["estado"] == "Done",
