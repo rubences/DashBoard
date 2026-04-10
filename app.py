@@ -189,7 +189,7 @@ with col_left:
     else:
         fig_lap = go.Figure()
         fig_lap.update_layout(title="Sin datos")
-    st.plotly_chart(fig_lap, use_container_width=True)
+    st.plotly_chart(fig_lap, width='stretch')
 
 with col_right:
     if not dff.empty:
@@ -206,7 +206,7 @@ with col_right:
     else:
         fig_sector = go.Figure()
         fig_sector.update_layout(title="Sin datos")
-    st.plotly_chart(fig_sector, use_container_width=True)
+    st.plotly_chart(fig_sector, width='stretch')
 
 # ============================================================
 # GRÁFICOS — FILA 2: Térmico + Presiones
@@ -230,7 +230,7 @@ with col_left2:
         title=f"Gradiente térmico del neumático — {sesion}",
         template="plotly_white", xaxis_title="Vuelta", yaxis_title="Temperatura (°C)"
     )
-    st.plotly_chart(fig_thermal, use_container_width=True)
+    st.plotly_chart(fig_thermal, width='stretch')
 
 with col_right2:
     fig_pressure = go.Figure()
@@ -242,7 +242,7 @@ with col_right2:
         title=f"Presiones dinámicas objetivo — {sesion}",
         template="plotly_white", xaxis_title="Vuelta", yaxis_title="Presión (bar)", barmode="group"
     )
-    st.plotly_chart(fig_pressure, use_container_width=True)
+    st.plotly_chart(fig_pressure, width='stretch')
 
 # ============================================================
 # GRÁFICOS — FILA 3: Mapas electrónicos + Compuestos
@@ -260,7 +260,7 @@ with col_left3:
         title=f"Mapas electrónicos por vuelta — {sesion}",
         template="plotly_white", xaxis_title="Vuelta", yaxis_title="Nivel"
     )
-    st.plotly_chart(fig_maps, use_container_width=True)
+    st.plotly_chart(fig_maps, width='stretch')
 
 with col_right3:
     if not dff.empty:
@@ -279,7 +279,7 @@ with col_right3:
     else:
         fig_compound = go.Figure()
         fig_compound.update_layout(title="Sin datos")
-    st.plotly_chart(fig_compound, use_container_width=True)
+    st.plotly_chart(fig_compound, width='stretch')
 
 st.markdown("---")
 
