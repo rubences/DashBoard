@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
+import math
 
 # ============================================================
 # CONFIGURACIÓN DE PÁGINA
@@ -91,6 +92,107 @@ INSIGHTS = {
         "legal y evitar sobretemperatura o degradación prematura."
     ),
 }
+
+CIRCUIT_POINTS = [
+    {"punto": "Meta", "lat": -16.6892, "lon": -49.2359},
+    {"punto": "T1", "lat": -16.6881, "lon": -49.2322},
+    {"punto": "T2", "lat": -16.6869, "lon": -49.2301},
+    {"punto": "T3", "lat": -16.6848, "lon": -49.2295},
+    {"punto": "T4", "lat": -16.6824, "lon": -49.2314},
+    {"punto": "T5", "lat": -16.6813, "lon": -49.2342},
+    {"punto": "T6", "lat": -16.6825, "lon": -49.2372},
+    {"punto": "T7", "lat": -16.6849, "lon": -49.2391},
+    {"punto": "T8", "lat": -16.6873, "lon": -49.2398},
+    {"punto": "T9", "lat": -16.6894, "lon": -49.2383},
+    {"punto": "T10", "lat": -16.6901, "lon": -49.2368},
+]
+
+
+def build_circuit_figure(dff_session):
+    circuit_df = pd.DataFrame(CIRCUIT_POINTS)
+    lat0 = circuit_df["lat"].mean()
+    lon0 = circuit_df["lon"].mean()
+
+    # Conversión aproximada lat/lon a metros para representar el trazado en un plano.
+    circuit_df["x_m"] = (circuit_df["lon"] - lon0) * 111320 * math.cos(math.radians(lat0))
+    circuit_df["y_m"] = (circuit_df["lat"] - lat0) * 110540
+
+    # Cerrar el circuito uniendo último punto con meta.
+    closed_df = pd.concat([circuit_df, circuit_df.iloc[[0]]], ignore_index=True)
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=closed_df["x_m"],
+            y=closed_df["y_m"],
+            mode="lines",
+            line={"width": 5, "color": "#111827"},
+            name="Trazado",
+            hoverinfo="skip",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=circuit_df["x_m"],
+            y=circuit_df["y_m"],
+            mode="markers+text",
+            marker={"size": 9, "color": "#ef4444"},
+            text=circuit_df["punto"],
+            textposition="top center",
+            name="Curvas",
+            customdata=circuit_df[["lat", "lon"]],
+            hovertemplate=(
+                "<b>%{text}</b><br>"
+                "Lat: %{customdata[0]:.4f}<br>"
+                "Lon: %{customdata[1]:.4f}<extra></extra>"
+            ),
+        )
+    )
+
+    if not dff_session.empty:
+        laps = dff_session[["vuelta", "lap_time_s"]].dropna().sort_values("vuelta")
+        if not laps.empty:
+            idx_series = (
+                (laps["vuelta"].rank(method="first") - 1)
+                .astype(int)
+                .mod(len(circuit_df))
+            )
+            lap_points = circuit_df.iloc[idx_series.values].copy()
+            lap_points["vuelta"] = laps["vuelta"].values
+            lap_points["lap_time_s"] = laps["lap_time_s"].values
+
+            fig.add_trace(
+                go.Scatter(
+                    x=lap_points["x_m"],
+                    y=lap_points["y_m"],
+                    mode="markers",
+                    marker={
+                        "size": 12,
+                        "color": lap_points["lap_time_s"],
+                        "colorscale": "Viridis",
+                        "showscale": True,
+                        "colorbar": {"title": "Lap (s)"},
+                        "line": {"width": 1, "color": "#ffffff"},
+                    },
+                    name="Vueltas",
+                    hovertemplate=(
+                        "Vuelta %{customdata[0]}<br>"
+                        "Tiempo: %{customdata[1]:.2f}s<extra></extra>"
+                    ),
+                    customdata=lap_points[["vuelta", "lap_time_s"]],
+                )
+            )
+
+    fig.update_layout(
+        title="Circuito de Goiânia basado en localización",
+        template="plotly_white",
+        xaxis_title="Eje Este-Oeste (m)",
+        yaxis_title="Eje Norte-Sur (m)",
+        xaxis={"scaleanchor": "y", "scaleratio": 1},
+        legend={"orientation": "h", "y": 1.08, "x": 0},
+        margin={"l": 20, "r": 20, "t": 60, "b": 20},
+    )
+    return fig
 
 # ============================================================
 # SIDEBAR — FILTROS
@@ -284,6 +386,26 @@ with col_right3:
 st.markdown("---")
 
 # ============================================================
+# CIRCUITO POR LOCALIZACIÓN
+# ============================================================
+
+st.subheader("🗺️ Mapa del circuito por localización")
+circuit_col, context_col = st.columns([2, 1])
+
+with circuit_col:
+    fig_circuit = build_circuit_figure(dff)
+    st.plotly_chart(fig_circuit, width='stretch')
+
+with context_col:
+    st.markdown("**Referencia geográfica**")
+    st.write("• Trazado aproximado del Autódromo de Goiânia")
+    st.write("• Curvas etiquetadas por punto")
+    st.write("• Marcadores de vueltas coloreados por tiempo")
+    st.caption("Visual de apoyo para análisis táctico por sesión.")
+
+st.markdown("---")
+
+# ============================================================
 # KANBAN OPERATIVO
 # ============================================================
 
@@ -313,6 +435,32 @@ def render_kanban_col(container, title, tasks, bg_color):
 render_kanban_col(k1, "🔵 Todo", todo_tasks, "#eef2ff")
 render_kanban_col(k2, "🟠 In Progress", progress_tasks, "#fff7ed")
 render_kanban_col(k3, "🟢 Done", done_tasks, "#ecfdf5")
+
+st.markdown("### ✅ Lista de tareas operativas")
+if tff.empty:
+    st.info("No hay tareas para este rol en la sesión seleccionada.")
+else:
+    order_map = {"Alta": 0, "Media": 1, "Baja": 2}
+    tasks_table = tff[["tarea", "estado", "prioridad"]].copy()
+    tasks_table["_orden"] = tasks_table["prioridad"].map(order_map).fillna(99)
+    tasks_table = tasks_table.sort_values(["_orden", "estado", "tarea"]).drop(columns=["_orden"])
+
+    done_count = (tasks_table["estado"] == "Done").sum()
+    total_count = len(tasks_table)
+    progress = done_count / total_count if total_count else 0
+
+    p1, p2 = st.columns([1, 3])
+    p1.metric("Completadas", f"{done_count}/{total_count}")
+    p2.progress(progress, text=f"Progreso operativo: {progress * 100:.0f}%")
+
+    st.dataframe(tasks_table, width="stretch", hide_index=True)
+    st.markdown("**Checklist por estado (solo lectura):**")
+    for _, row in tasks_table.iterrows():
+        st.checkbox(
+            f"[{row['estado']}] ({row['prioridad']}) {row['tarea']}",
+            value=row["estado"] == "Done",
+            disabled=True,
+        )
 
 st.markdown("---")
 
