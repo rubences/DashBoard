@@ -108,7 +108,7 @@ CIRCUIT_POINTS = [
 ]
 
 
-def build_circuit_figure(dff_session):
+def build_circuit_figure(dff_session, color_mode="Tiempo de vuelta", selected_lap=None):
     circuit_df = pd.DataFrame(CIRCUIT_POINTS)
     lat0 = circuit_df["lat"].mean()
     lon0 = circuit_df["lon"].mean()
@@ -150,7 +150,9 @@ def build_circuit_figure(dff_session):
     )
 
     if not dff_session.empty:
-        laps = dff_session[["vuelta", "lap_time_s"]].dropna().sort_values("vuelta")
+        laps = dff_session[
+            ["vuelta", "lap_time_s", "run", "sector_1_s", "sector_2_s", "sector_3_s"]
+        ].dropna(subset=["vuelta", "lap_time_s"]).sort_values("vuelta")
         if not laps.empty:
             idx_series = (
                 (laps["vuelta"].rank(method="first") - 1)
@@ -160,28 +162,85 @@ def build_circuit_figure(dff_session):
             lap_points = circuit_df.iloc[idx_series.values].copy()
             lap_points["vuelta"] = laps["vuelta"].values
             lap_points["lap_time_s"] = laps["lap_time_s"].values
+            lap_points["run"] = laps["run"].astype(str).values
+            lap_points["sector_dominante"] = (
+                laps[["sector_1_s", "sector_2_s", "sector_3_s"]].idxmax(axis=1)
+                .str.replace("_s", "", regex=False)
+                .str.replace("_", " ", regex=False)
+                .str.upper()
+                .values
+            )
+
+            marker_cfg = {
+                "size": 12,
+                "line": {"width": 1, "color": "#ffffff"},
+            }
+            show_scale = False
+            if color_mode == "Tiempo de vuelta":
+                marker_cfg["color"] = lap_points["lap_time_s"]
+                marker_cfg["colorscale"] = "Viridis"
+                marker_cfg["showscale"] = True
+                marker_cfg["colorbar"] = {"title": "Lap (s)"}
+                show_scale = True
+            elif color_mode == "Run":
+                run_colors = {
+                    "Run 1": "#2563eb",
+                    "Run 2": "#16a34a",
+                    "Run 3": "#ea580c",
+                    "Run 4": "#9333ea",
+                }
+                marker_cfg["color"] = [run_colors.get(run_name, "#64748b") for run_name in lap_points["run"]]
+            else:
+                sector_colors = {
+                    "SECTOR 1": "#ef4444",
+                    "SECTOR 2": "#f59e0b",
+                    "SECTOR 3": "#10b981",
+                }
+                marker_cfg["color"] = [
+                    sector_colors.get(sector_name, "#64748b")
+                    for sector_name in lap_points["sector_dominante"]
+                ]
 
             fig.add_trace(
                 go.Scatter(
                     x=lap_points["x_m"],
                     y=lap_points["y_m"],
                     mode="markers",
-                    marker={
-                        "size": 12,
-                        "color": lap_points["lap_time_s"],
-                        "colorscale": "Viridis",
-                        "showscale": True,
-                        "colorbar": {"title": "Lap (s)"},
-                        "line": {"width": 1, "color": "#ffffff"},
-                    },
+                    marker=marker_cfg,
                     name="Vueltas",
                     hovertemplate=(
                         "Vuelta %{customdata[0]}<br>"
-                        "Tiempo: %{customdata[1]:.2f}s<extra></extra>"
+                        "Tiempo: %{customdata[1]:.2f}s<br>"
+                        "Run: %{customdata[2]}<br>"
+                        "Sector dominante: %{customdata[3]}<extra></extra>"
                     ),
-                    customdata=lap_points[["vuelta", "lap_time_s"]],
+                    customdata=lap_points[["vuelta", "lap_time_s", "run", "sector_dominante"]],
                 )
             )
+
+            if selected_lap is not None:
+                selected_df = lap_points[lap_points["vuelta"] == selected_lap]
+                if not selected_df.empty:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=selected_df["x_m"],
+                            y=selected_df["y_m"],
+                            mode="markers+text",
+                            text=[f"V{int(selected_lap)}"],
+                            textposition="bottom center",
+                            marker={
+                                "size": 22,
+                                "color": "#111827",
+                                "symbol": "star",
+                                "line": {"width": 2, "color": "#facc15"},
+                            },
+                            name="Vuelta seleccionada",
+                            hovertemplate="Vuelta seleccionada %{text}<extra></extra>",
+                        )
+                    )
+
+            if color_mode != "Tiempo de vuelta" and show_scale:
+                marker_cfg["showscale"] = False
 
     fig.update_layout(
         title="Circuito de Goiânia basado en localización",
@@ -216,6 +275,23 @@ with st.sidebar:
         sesiones_disponibles,
         index=sesiones_disponibles.index(default_sesion)
     )
+
+    st.markdown("### Interacción del circuito")
+    circuit_color_mode = st.selectbox(
+        "Colorear vueltas por",
+        ["Tiempo de vuelta", "Run", "Sector dominante"],
+        index=0,
+    )
+
+    dff_preview = df_telemetry[df_telemetry["sesion"] == sesion].copy()
+    available_laps = sorted(dff_preview["vuelta"].dropna().astype(int).unique().tolist())
+    selected_lap = None
+    if available_laps:
+        selected_lap = st.select_slider(
+            "Resaltar vuelta",
+            options=available_laps,
+            value=available_laps[0],
+        )
 
     st.markdown("---")
     st.caption("Datos: telemetría, tareas y setup CSV")
@@ -393,14 +469,16 @@ st.subheader("🗺️ Mapa del circuito por localización")
 circuit_col, context_col = st.columns([2, 1])
 
 with circuit_col:
-    fig_circuit = build_circuit_figure(dff)
+    fig_circuit = build_circuit_figure(dff, circuit_color_mode, selected_lap)
     st.plotly_chart(fig_circuit, width='stretch')
 
 with context_col:
     st.markdown("**Referencia geográfica**")
     st.write("• Trazado aproximado del Autódromo de Goiânia")
     st.write("• Curvas etiquetadas por punto")
-    st.write("• Marcadores de vueltas coloreados por tiempo")
+    st.write(f"• Color activo: {circuit_color_mode}")
+    if selected_lap is not None:
+        st.write(f"• Vuelta resaltada: {selected_lap}")
     st.caption("Visual de apoyo para análisis táctico por sesión.")
 
 st.markdown("---")
