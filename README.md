@@ -33,7 +33,7 @@ Dashboard técnico para análisis de telemetría, setup y operación por rol dur
 - Modo de visualización:
   - Completo: todas las visualizaciones y análisis
   - Ejecutivo: vista resumida, enfocada en KPIs y decisión rápida
-  - conserva preferencias durante la sesión (modo, paginación y filtros)
+  - conserva preferencias entre sesiones locales (modo, paginación y filtros)
 - Mapa del circuito por localización:
   - trazado aproximado con puntos de curva
   - interacción para colorear vueltas por tiempo, run o sector dominante
@@ -84,3 +84,7 @@ Plataforma recomendada: Streamlit Community Cloud.
 6. Deploy
 
 Nota: Vercel no es una buena opción para apps Streamlit porque Streamlit requiere un proceso persistente con WebSockets.
+
+Preferencias UI persistentes:
+- Se guardan automáticamente en `.streamlit/ui_prefs.json`.
+- Puedes resetearlas desde el botón `Restablecer preferencias` en la barra lateral.

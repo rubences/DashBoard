@@ -3,7 +3,9 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import math
+import json
 from io import BytesIO
+from pathlib import Path
 
 # ============================================================
 # CONFIGURACIÓN DE PÁGINA
@@ -23,6 +25,7 @@ st.set_page_config(
 TELEMETRY_CSV = "moto3_goiania_telemetry.csv"
 TASKS_CSV = "moto3_goiania_tasks.csv"
 SETUP_CSV = "moto3_goiania_setup.csv"
+PREFS_FILE = Path(".streamlit/ui_prefs.json")
 
 REQUIRED_TELEMETRY_COLUMNS = [
     "sesion", "vuelta", "run", "lap_time_s", "sector_1_s", "sector_2_s", "sector_3_s",
@@ -45,6 +48,25 @@ def paginate_df(df, page, page_size):
     start = (page - 1) * page_size
     end = start + page_size
     return df.iloc[start:end]
+
+
+def load_ui_prefs():
+    if not PREFS_FILE.exists():
+        return {}
+    try:
+        data = json.loads(PREFS_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def save_ui_prefs(prefs):
+    try:
+        PREFS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PREFS_FILE.write_text(json.dumps(prefs, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
+        # Si falla el guardado, la app mantiene el estado en sesión.
+        pass
 
 
 @st.cache_data
@@ -327,18 +349,19 @@ if not sesiones_disponibles:
     st.error("No hay sesiones disponibles en el CSV de telemetría.")
     st.stop()
 
-if "view_mode" not in st.session_state:
-    st.session_state.view_mode = "Completo"
-if "task_page_size" not in st.session_state:
-    st.session_state.task_page_size = 8
-if "telemetry_page_size" not in st.session_state:
-    st.session_state.telemetry_page_size = 10
-if "task_page" not in st.session_state:
-    st.session_state.task_page = 1
-if "telemetry_page" not in st.session_state:
-    st.session_state.telemetry_page = 1
-if "task_search" not in st.session_state:
-    st.session_state.task_search = ""
+if "_prefs_loaded" not in st.session_state:
+    prefs = load_ui_prefs()
+    st.session_state.view_mode = prefs.get("view_mode", "Completo") if prefs.get("view_mode") in ["Completo", "Ejecutivo"] else "Completo"
+    st.session_state.task_page_size = int(prefs.get("task_page_size", 8)) if isinstance(prefs.get("task_page_size", 8), int) else 8
+    st.session_state.telemetry_page_size = int(prefs.get("telemetry_page_size", 10)) if isinstance(prefs.get("telemetry_page_size", 10), int) else 10
+    st.session_state.task_page_size = min(max(st.session_state.task_page_size, 5), 30)
+    st.session_state.telemetry_page_size = min(max(st.session_state.telemetry_page_size, 5), 30)
+    st.session_state.task_page = int(prefs.get("task_page", 1)) if isinstance(prefs.get("task_page", 1), int) else 1
+    st.session_state.telemetry_page = int(prefs.get("telemetry_page", 1)) if isinstance(prefs.get("telemetry_page", 1), int) else 1
+    st.session_state.task_search = str(prefs.get("task_search", ""))
+    st.session_state.task_estados_sel = prefs.get("task_estados_sel", []) if isinstance(prefs.get("task_estados_sel", []), list) else []
+    st.session_state.task_prioridades_sel = prefs.get("task_prioridades_sel", []) if isinstance(prefs.get("task_prioridades_sel", []), list) else []
+    st.session_state._prefs_loaded = True
 
 with st.sidebar:
     st.title("🏍️ Moto3 Goiânia 2026")
@@ -361,6 +384,12 @@ with st.sidebar:
     view_mode = st.radio("Perfil", ["Completo", "Ejecutivo"], key="view_mode")
     task_page_size = st.slider("Filas por página (tareas)", min_value=5, max_value=30, step=1, key="task_page_size")
     telemetry_page_size = st.slider("Filas por página (telemetría)", min_value=5, max_value=30, step=1, key="telemetry_page_size")
+
+    if st.button("Restablecer preferencias", width="stretch"):
+        if PREFS_FILE.exists():
+            PREFS_FILE.unlink(missing_ok=True)
+        st.session_state.clear()
+        st.rerun()
 
     st.markdown("### Interacción del circuito")
     circuit_color_mode = st.selectbox(
@@ -949,3 +978,18 @@ st.markdown("---")
 
 st.subheader("🎯 Lectura táctica por rol")
 st.info(INSIGHTS.get(rol, "Sin insight disponible para este rol."))
+
+# Guardado persistente de preferencias entre sesiones locales.
+prefs_to_save = {
+    "view_mode": st.session_state.get("view_mode", "Completo"),
+    "task_page_size": int(st.session_state.get("task_page_size", 8)),
+    "telemetry_page_size": int(st.session_state.get("telemetry_page_size", 10)),
+    "task_page": int(st.session_state.get("task_page", 1)),
+    "telemetry_page": int(st.session_state.get("telemetry_page", 1)),
+    "task_search": st.session_state.get("task_search", ""),
+    "task_estados_sel": st.session_state.get("task_estados_sel", []),
+    "task_prioridades_sel": st.session_state.get("task_prioridades_sel", []),
+}
+if st.session_state.get("_last_saved_prefs") != prefs_to_save:
+    save_ui_prefs(prefs_to_save)
+    st.session_state._last_saved_prefs = prefs_to_save
