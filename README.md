@@ -30,7 +30,10 @@ Dashboard técnico para análisis de telemetría, setup y operación por rol dur
   - progreso de completitud
   - filtros rápidos por estado y prioridad
   - búsqueda por texto
-  - exportación de tareas filtradas a CSV
+  - exportación de tareas filtradas a CSV y Excel (.xlsx) multi-hoja
+    - Tareas_Filtradas
+    - Resumen_Operativo
+    - KPIs_Sesion
 
 ## Ejecutar en local
 

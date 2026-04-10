@@ -3,6 +3,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import math
+from io import BytesIO
 
 # ============================================================
 # CONFIGURACIÓN DE PÁGINA
@@ -559,11 +560,50 @@ else:
     st.dataframe(tasks_filtered, width="stretch", hide_index=True)
 
     csv_data = tasks_filtered.to_csv(index=False).encode("utf-8")
-    st.download_button(
+
+    resumen_operativo = pd.DataFrame(
+        [
+            {"campo": "sesion", "valor": sesion},
+            {"campo": "rol", "valor": rol},
+            {"campo": "total_tareas", "valor": int(total_count)},
+            {"campo": "tareas_completadas", "valor": int(done_count)},
+            {"campo": "progreso_pct", "valor": round(progress * 100, 2)},
+            {"campo": "filtro_estado", "valor": ", ".join(estados_sel)},
+            {"campo": "filtro_prioridad", "valor": ", ".join(prioridades_sel)},
+            {"campo": "busqueda", "valor": search_text.strip() if search_text.strip() else "(sin filtro)"},
+        ]
+    )
+
+    kpis_sesion = pd.DataFrame(
+        [
+            {"kpi": "mejor_vuelta_s", "valor": best_lap},
+            {"kpi": "velocidad_punta_kmh", "valor": vmax},
+            {"kpi": "temp_flanco_derecho_c", "valor": temp_right},
+            {"kpi": "anti_squat_pct", "valor": anti_squat},
+            {"kpi": "presion_trasera_hot_bar", "valor": p_rear},
+        ]
+    )
+
+    xlsx_buffer = BytesIO()
+    with pd.ExcelWriter(xlsx_buffer, engine="openpyxl") as writer:
+        tasks_filtered.to_excel(writer, index=False, sheet_name="Tareas_Filtradas")
+        resumen_operativo.to_excel(writer, index=False, sheet_name="Resumen_Operativo")
+        kpis_sesion.to_excel(writer, index=False, sheet_name="KPIs_Sesion")
+    xlsx_data = xlsx_buffer.getvalue()
+
+    d1, d2 = st.columns(2)
+    d1.download_button(
         label="Descargar tareas filtradas (CSV)",
         data=csv_data,
         file_name=f"tareas_{sesion}_{rol}.csv".replace(" ", "_"),
         mime="text/csv",
+        width="content",
+    )
+    d2.download_button(
+        label="Descargar tareas filtradas (Excel multi-hoja)",
+        data=xlsx_data,
+        file_name=f"tareas_{sesion}_{rol}.xlsx".replace(" ", "_"),
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         width="content",
     )
 
