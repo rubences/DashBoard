@@ -56,13 +56,13 @@ Dashboard técnico para análisis de telemetría, setup y operación por rol dur
 pip install -r requirements.txt
 ```
 
-2. Ejecuta Streamlit:
+1. Ejecuta Streamlit:
 
 ```bash
 streamlit run app.py
 ```
 
-3. Abre en navegador:
+1. Abre en navegador:
 
 - `http://localhost:8501`
 
