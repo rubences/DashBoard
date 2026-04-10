@@ -24,6 +24,20 @@ TELEMETRY_CSV = "moto3_goiania_telemetry.csv"
 TASKS_CSV = "moto3_goiania_tasks.csv"
 SETUP_CSV = "moto3_goiania_setup.csv"
 
+REQUIRED_TELEMETRY_COLUMNS = [
+    "sesion", "vuelta", "run", "lap_time_s", "sector_1_s", "sector_2_s", "sector_3_s",
+    "velocidad_punta_kmh", "temp_neumatico_right_c", "temp_neumatico_center_c", "temp_neumatico_left_c",
+    "presion_front_hot_target_bar", "presion_rear_hot_target_bar", "anti_squat_pct",
+    "traction_control_lvl", "engine_brake_lvl", "anti_wheelie_lvl",
+    "neumatico_front", "neumatico_rear",
+]
+REQUIRED_TASKS_COLUMNS = ["sesion", "rol", "tarea", "estado", "prioridad"]
+REQUIRED_SETUP_COLUMNS = ["parametro", "valor"]
+
+
+def missing_columns(df, required_cols):
+    return [col for col in required_cols if col not in df.columns]
+
 
 @st.cache_data
 def load_data():
@@ -51,6 +65,18 @@ def load_data():
 
 df_telemetry, df_tasks, df_setup = load_data()
 
+telemetry_missing = missing_columns(df_telemetry, REQUIRED_TELEMETRY_COLUMNS)
+tasks_missing = missing_columns(df_tasks, REQUIRED_TASKS_COLUMNS)
+setup_missing = missing_columns(df_setup, REQUIRED_SETUP_COLUMNS)
+if telemetry_missing or tasks_missing or setup_missing:
+    if telemetry_missing:
+        st.error(f"Faltan columnas en telemetría: {', '.join(telemetry_missing)}")
+    if tasks_missing:
+        st.error(f"Faltan columnas en tareas: {', '.join(tasks_missing)}")
+    if setup_missing:
+        st.error(f"Faltan columnas en setup: {', '.join(setup_missing)}")
+    st.stop()
+
 # ============================================================
 # UTILIDADES
 # ============================================================
@@ -71,7 +97,19 @@ def fmt_num(value, decimals=2, suffix=""):
     return f"{value:.{decimals}f}{suffix}"
 
 
+def fmt_delta(current, reference, decimals=3, suffix=""):
+    if pd.isna(current) or pd.isna(reference):
+        return "N/D"
+    return f"{(current - reference):+.{decimals}f}{suffix}"
+
+
 def session_summary(df_source):
+    needed = [
+        "sesion", "lap_time_s", "velocidad_punta_kmh", "temp_neumatico_right_c",
+        "anti_squat_pct", "presion_rear_hot_target_bar",
+    ]
+    if any(col not in df_source.columns for col in needed):
+        return pd.DataFrame(columns=["sesion", "best_lap", "avg_lap", "vmax", "temp_right", "anti_squat", "p_rear"])
     if df_source.empty:
         return pd.DataFrame(columns=["sesion", "best_lap", "avg_lap", "vmax", "temp_right", "anti_squat", "p_rear"])
     return (
@@ -192,13 +230,11 @@ def build_circuit_figure(dff_session, color_mode="Tiempo de vuelta", selected_la
                 "size": 12,
                 "line": {"width": 1, "color": "#ffffff"},
             }
-            show_scale = False
             if color_mode == "Tiempo de vuelta":
                 marker_cfg["color"] = lap_points["lap_time_s"]
                 marker_cfg["colorscale"] = "Viridis"
                 marker_cfg["showscale"] = True
                 marker_cfg["colorbar"] = {"title": "Lap (s)"}
-                show_scale = True
             elif color_mode == "Run":
                 run_colors = {
                     "Run 1": "#2563eb",
@@ -256,9 +292,6 @@ def build_circuit_figure(dff_session, color_mode="Tiempo de vuelta", selected_la
                         )
                     )
 
-            if color_mode != "Tiempo de vuelta" and show_scale:
-                marker_cfg["showscale"] = False
-
     fig.update_layout(
         title="Circuito de Goiânia basado en localización",
         template="plotly_white",
@@ -278,6 +311,13 @@ roles = sorted(df_tasks["rol"].dropna().unique().tolist())
 sesiones_disponibles = [s for s in SESIONES_ORDEN if s in df_telemetry["sesion"].unique()]
 if not sesiones_disponibles:
     sesiones_disponibles = sorted(df_telemetry["sesion"].dropna().unique().tolist())
+
+if not roles:
+    st.error("No hay roles disponibles en el CSV de tareas.")
+    st.stop()
+if not sesiones_disponibles:
+    st.error("No hay sesiones disponibles en el CSV de telemetría.")
+    st.stop()
 
 with st.sidebar:
     st.title("🏍️ Moto3 Goiânia 2026")
@@ -383,10 +423,10 @@ else:
         reference = compare_row.iloc[0]
 
         cmp1, cmp2, cmp3, cmp4 = st.columns(4)
-        cmp1.metric("Δ Mejor vuelta (s)", f"{current['best_lap'] - reference['best_lap']:+.3f}")
-        cmp2.metric("Δ Velocidad punta (km/h)", f"{current['vmax'] - reference['vmax']:+.1f}")
-        cmp3.metric("Δ Temp. der. (°C)", f"{current['temp_right'] - reference['temp_right']:+.2f}")
-        cmp4.metric("Δ Presión trasera (bar)", f"{current['p_rear'] - reference['p_rear']:+.3f}")
+        cmp1.metric("Δ Mejor vuelta (s)", fmt_delta(current["best_lap"], reference["best_lap"], 3))
+        cmp2.metric("Δ Velocidad punta (km/h)", fmt_delta(current["vmax"], reference["vmax"], 1))
+        cmp3.metric("Δ Temp. der. (°C)", fmt_delta(current["temp_right"], reference["temp_right"], 2))
+        cmp4.metric("Δ Presión trasera (bar)", fmt_delta(current["p_rear"], reference["p_rear"], 3))
 
         cmp_df = pd.DataFrame(
             [
@@ -584,7 +624,8 @@ with adv2:
         "anti_squat_pct",
         "track_temp_c",
     ]
-    corr_df = dff[corr_cols].dropna() if not dff.empty else pd.DataFrame()
+    available_corr_cols = [col for col in corr_cols if col in dff.columns]
+    corr_df = dff[available_corr_cols].dropna() if not dff.empty and available_corr_cols else pd.DataFrame()
     if not corr_df.empty and len(corr_df) > 1:
         fig_corr = px.imshow(
             corr_df.corr(numeric_only=True),
