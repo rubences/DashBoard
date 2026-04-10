@@ -324,6 +324,13 @@ dff = df_telemetry[df_telemetry["sesion"] == sesion].copy()
 tff = df_tasks[(df_tasks["sesion"] == sesion) & (df_tasks["rol"] == rol)].copy()
 session_df = session_summary(df_telemetry)
 
+# KPIs base reutilizados por alertas, comparador y tarjetas.
+best_lap = dff["lap_time_s"].min() if not dff.empty else None
+vmax = dff["velocidad_punta_kmh"].max() if not dff.empty else None
+temp_right = dff["temp_neumatico_right_c"].mean() if not dff.empty else None
+anti_squat = dff["anti_squat_pct"].mean() if not dff.empty else None
+p_rear = dff["presion_rear_hot_target_bar"].mean() if not dff.empty else None
+
 # ============================================================
 # ENCABEZADO
 # ============================================================
@@ -403,12 +410,6 @@ st.markdown("---")
 # ============================================================
 # KPI CARDS
 # ============================================================
-
-best_lap = dff["lap_time_s"].min() if not dff.empty else None
-vmax = dff["velocidad_punta_kmh"].max() if not dff.empty else None
-temp_right = dff["temp_neumatico_right_c"].mean() if not dff.empty else None
-anti_squat = dff["anti_squat_pct"].mean() if not dff.empty else None
-p_rear = dff["presion_rear_hot_target_bar"].mean() if not dff.empty else None
 
 kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 
