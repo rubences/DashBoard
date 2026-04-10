@@ -71,6 +71,22 @@ def fmt_num(value, decimals=2, suffix=""):
     return f"{value:.{decimals}f}{suffix}"
 
 
+def session_summary(df_source):
+    if df_source.empty:
+        return pd.DataFrame(columns=["sesion", "best_lap", "avg_lap", "vmax", "temp_right", "anti_squat", "p_rear"])
+    return (
+        df_source.groupby("sesion", as_index=False)
+        .agg(
+            best_lap=("lap_time_s", "min"),
+            avg_lap=("lap_time_s", "mean"),
+            vmax=("velocidad_punta_kmh", "max"),
+            temp_right=("temp_neumatico_right_c", "mean"),
+            anti_squat=("anti_squat_pct", "mean"),
+            p_rear=("presion_rear_hot_target_bar", "mean"),
+        )
+    )
+
+
 INSIGHTS = {
     "Piloto": (
         "Concéntrate en la estabilidad en T1, conservar el flanco derecho del trasero "
@@ -277,6 +293,9 @@ with st.sidebar:
         index=sesiones_disponibles.index(default_sesion)
     )
 
+    compare_options = ["Ninguna"] + [s for s in sesiones_disponibles if s != sesion]
+    compare_session = st.selectbox("Comparar contra", compare_options, index=0)
+
     st.markdown("### Interacción del circuito")
     circuit_color_mode = st.selectbox(
         "Colorear vueltas por",
@@ -303,6 +322,7 @@ with st.sidebar:
 
 dff = df_telemetry[df_telemetry["sesion"] == sesion].copy()
 tff = df_tasks[(df_tasks["sesion"] == sesion) & (df_tasks["rol"] == rol)].copy()
+session_df = session_summary(df_telemetry)
 
 # ============================================================
 # ENCABEZADO
@@ -310,6 +330,74 @@ tff = df_tasks[(df_tasks["sesion"] == sesion) & (df_tasks["rol"] == rol)].copy()
 
 st.title("Dashboard Moto3 — Goiânia 2026")
 st.markdown(f"**Sesión:** {sesion} &nbsp;|&nbsp; **Rol:** {rol}")
+st.markdown("---")
+
+# ============================================================
+# ALERTAS AUTOMÁTICAS
+# ============================================================
+
+st.subheader("🚨 Alertas automáticas")
+alerts = []
+if p_rear is not None and not pd.isna(p_rear) and p_rear < 1.65:
+    alerts.append({"tipo": "Crítica", "detalle": "Presión trasera media por debajo de 1.65 bar", "valor": round(p_rear, 3)})
+if temp_right is not None and not pd.isna(temp_right) and temp_right > 95:
+    alerts.append({"tipo": "Alerta", "detalle": "Temperatura flanco derecho por encima de 95 °C", "valor": round(temp_right, 2)})
+if anti_squat is not None and not pd.isna(anti_squat) and not (108 <= anti_squat <= 112):
+    alerts.append({"tipo": "Alerta", "detalle": "Anti-squat fuera de ventana 108-112%", "valor": round(anti_squat, 2)})
+
+if not dff.empty and dff["lap_time_s"].notna().sum() > 1:
+    lap_std = float(dff["lap_time_s"].std())
+    if lap_std > 0.6:
+        alerts.append({"tipo": "Info", "detalle": "Variabilidad de vuelta alta (consistencia mejorable)", "valor": round(lap_std, 3)})
+
+if not alerts:
+    st.success("Sin alertas críticas para la sesión seleccionada.")
+else:
+    critical_count = len([a for a in alerts if a["tipo"] == "Crítica"])
+    if critical_count > 0:
+        st.error(f"Se detectaron {critical_count} alertas críticas.")
+    st.dataframe(pd.DataFrame(alerts), width="stretch", hide_index=True)
+
+st.markdown("---")
+
+# ============================================================
+# COMPARADOR DE SESIONES
+# ============================================================
+
+st.subheader("📈 Comparador de sesiones")
+if compare_session == "Ninguna":
+    st.caption("Selecciona una sesión de referencia en la barra lateral para activar la comparación.")
+else:
+    current_row = session_df[session_df["sesion"] == sesion]
+    compare_row = session_df[session_df["sesion"] == compare_session]
+
+    if not current_row.empty and not compare_row.empty:
+        current = current_row.iloc[0]
+        reference = compare_row.iloc[0]
+
+        cmp1, cmp2, cmp3, cmp4 = st.columns(4)
+        cmp1.metric("Δ Mejor vuelta (s)", f"{current['best_lap'] - reference['best_lap']:+.3f}")
+        cmp2.metric("Δ Velocidad punta (km/h)", f"{current['vmax'] - reference['vmax']:+.1f}")
+        cmp3.metric("Δ Temp. der. (°C)", f"{current['temp_right'] - reference['temp_right']:+.2f}")
+        cmp4.metric("Δ Presión trasera (bar)", f"{current['p_rear'] - reference['p_rear']:+.3f}")
+
+        cmp_df = pd.DataFrame(
+            [
+                {"metric": "Best lap (s)", sesion: current["best_lap"], compare_session: reference["best_lap"]},
+                {"metric": "Avg lap (s)", sesion: current["avg_lap"], compare_session: reference["avg_lap"]},
+                {"metric": "Vmax (km/h)", sesion: current["vmax"], compare_session: reference["vmax"]},
+                {"metric": "Temp right (°C)", sesion: current["temp_right"], compare_session: reference["temp_right"]},
+                {"metric": "Anti-squat (%)", sesion: current["anti_squat"], compare_session: reference["anti_squat"]},
+                {"metric": "Rear pressure (bar)", sesion: current["p_rear"], compare_session: reference["p_rear"]},
+            ]
+        )
+        cmp_plot = cmp_df.melt(id_vars="metric", var_name="sesion", value_name="valor")
+        fig_cmp = px.bar(cmp_plot, x="metric", y="valor", color="sesion", barmode="group", title=f"{sesion} vs {compare_session}")
+        fig_cmp.update_layout(template="plotly_white", xaxis_title="Métrica", yaxis_title="Valor")
+        st.plotly_chart(fig_cmp, width="stretch")
+    else:
+        st.info("No hay datos suficientes para comparar esas sesiones.")
+
 st.markdown("---")
 
 # ============================================================
@@ -459,6 +547,72 @@ with col_right3:
         fig_compound = go.Figure()
         fig_compound.update_layout(title="Sin datos")
     st.plotly_chart(fig_compound, width='stretch')
+
+st.markdown("---")
+
+# ============================================================
+# ANÁLISIS AVANZADO
+# ============================================================
+
+st.subheader("🔬 Análisis avanzado")
+adv1, adv2 = st.columns(2)
+
+with adv1:
+    if not dff.empty:
+        fig_scatter = px.scatter(
+            dff,
+            x="temp_neumatico_right_c",
+            y="lap_time_s",
+            color="run",
+            size="velocidad_punta_kmh",
+            hover_data=["vuelta", "sector_1_s", "sector_2_s", "sector_3_s"],
+            title="Relación temperatura derecha vs tiempo de vuelta",
+        )
+        fig_scatter.update_layout(template="plotly_white", xaxis_title="Temp flanco derecho (°C)", yaxis_title="Lap time (s)")
+    else:
+        fig_scatter = go.Figure()
+        fig_scatter.update_layout(title="Sin datos")
+    st.plotly_chart(fig_scatter, width="stretch")
+
+with adv2:
+    corr_cols = [
+        "lap_time_s",
+        "velocidad_punta_kmh",
+        "temp_neumatico_right_c",
+        "presion_rear_hot_target_bar",
+        "anti_squat_pct",
+        "track_temp_c",
+    ]
+    corr_df = dff[corr_cols].dropna() if not dff.empty else pd.DataFrame()
+    if not corr_df.empty and len(corr_df) > 1:
+        fig_corr = px.imshow(
+            corr_df.corr(numeric_only=True),
+            text_auto=True,
+            color_continuous_scale="RdBu",
+            origin="lower",
+            title="Matriz de correlación (sesión)",
+            zmin=-1,
+            zmax=1,
+        )
+        fig_corr.update_layout(template="plotly_white")
+    else:
+        fig_corr = go.Figure()
+        fig_corr.update_layout(title="Sin datos suficientes para correlación")
+    st.plotly_chart(fig_corr, width="stretch")
+
+hist_df = dff[["lap_time_s", "run"]].dropna() if not dff.empty else pd.DataFrame()
+if not hist_df.empty:
+    fig_hist = px.histogram(
+        hist_df,
+        x="lap_time_s",
+        color="run",
+        barmode="overlay",
+        nbins=12,
+        title="Distribución de tiempos de vuelta por run",
+        opacity=0.7,
+    )
+    fig_hist.update_layout(template="plotly_white", xaxis_title="Lap time (s)", yaxis_title="Frecuencia")
+    st.plotly_chart(fig_hist, width="stretch")
 
 st.markdown("---")
 

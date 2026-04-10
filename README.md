@@ -21,10 +21,23 @@ Dashboard técnico para análisis de telemetría, setup y operación por rol dur
 
 - KPIs por sesión: mejor vuelta, velocidad punta, temperatura, anti-squat y presión trasera
 - Gráficos de performance: tiempos por vuelta, sectores, gradiente térmico, presiones, mapas y compuestos
+- Panel de alertas automáticas:
+  - presión trasera por debajo de mínimo
+  - exceso térmico en flanco derecho
+  - anti-squat fuera de ventana objetivo
+  - variabilidad de vuelta elevada
+- Comparador de sesiones:
+  - selección de sesión de referencia
+  - deltas de KPIs clave
+  - gráfico comparativo de métricas
 - Mapa del circuito por localización:
   - trazado aproximado con puntos de curva
   - interacción para colorear vueltas por tiempo, run o sector dominante
   - selector para resaltar una vuelta
+- Análisis avanzado:
+  - scatter de temperatura derecha vs lap time
+  - matriz de correlación de variables clave
+  - distribución de tiempos de vuelta por run
 - Kanban operativo por rol (Todo, In Progress, Done)
 - Lista operativa de tareas:
   - progreso de completitud
