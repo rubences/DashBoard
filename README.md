@@ -22,15 +22,15 @@ Dashboard técnico para análisis de telemetría, setup y operación por rol dur
 - KPIs por sesión: mejor vuelta, velocidad punta, temperatura, anti-squat y presión trasera
 - Gráficos de performance: tiempos por vuelta, sectores, gradiente térmico, presiones, mapas y compuestos
 - Mapa del circuito por localización:
-	- trazado aproximado con puntos de curva
-	- interacción para colorear vueltas por tiempo, run o sector dominante
-	- selector para resaltar una vuelta
+  - trazado aproximado con puntos de curva
+  - interacción para colorear vueltas por tiempo, run o sector dominante
+  - selector para resaltar una vuelta
 - Kanban operativo por rol (Todo, In Progress, Done)
 - Lista operativa de tareas:
-	- progreso de completitud
-	- filtros rápidos por estado y prioridad
-	- búsqueda por texto
-	- exportación de tareas filtradas a CSV
+  - progreso de completitud
+  - filtros rápidos por estado y prioridad
+  - búsqueda por texto
+  - exportación de tareas filtradas a CSV
 
 ## Ejecutar en local
 
