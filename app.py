@@ -5,6 +5,9 @@ import plotly.graph_objects as go
 import math
 import json
 import os
+import time
+import csv
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -1345,6 +1348,44 @@ with tab_rag:
     selected_model = c1.selectbox("Modelo generador", model_options, index=0)
     top_k = int(c2.slider("Top-k recuperación", min_value=2, max_value=8, value=4, step=1))
     max_tokens = int(c3.slider("Máx. tokens", min_value=128, max_value=1024, value=500, step=64))
+    fallback_enabled = st.checkbox(
+        "Fallback automático al segundo modelo si falla el primero",
+        value=True,
+    )
+    temperature = st.slider("Temperatura", min_value=0.0, max_value=1.0, value=0.2, step=0.05)
+
+    if "rag_last_payload" not in st.session_state:
+        st.session_state.rag_last_payload = None
+
+    def append_rag_log(row):
+        logs_dir = Path("rag_agent") / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_file = logs_dir / "rag_interactions.csv"
+        file_exists = log_file.exists()
+        with log_file.open("a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "timestamp",
+                    "question",
+                    "collection",
+                    "requested_model",
+                    "used_model",
+                    "fallback_used",
+                    "top_k",
+                    "max_tokens",
+                    "temperature",
+                    "latency_ms",
+                    "answer_chars",
+                    "sources_count",
+                    "avg_distance",
+                    "status",
+                    "error",
+                ],
+            )
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(row)
 
     default_token = st.session_state.get("rag_hf_token", "")
     if not default_token:
@@ -1428,20 +1469,47 @@ with tab_rag:
                 st.session_state.rag_messages.append({"role": "assistant", "content": msg})
             else:
                 with st.spinner("Recuperando contexto y generando respuesta..."):
+                    started = time.perf_counter()
                     try:
-                        assistant = rag_chat_module.RagAssistant(
-                            collection_name=collection_name,
-                            gen_model=selected_model,
-                            hf_token=hf_token,
-                        )
-                        payload = assistant.answer_with_sources(
-                            question=user_question,
-                            k=top_k,
-                            temperature=0.2,
-                            max_tokens=max_tokens,
-                        )
+                        model_chain = [selected_model]
+                        if fallback_enabled:
+                            for candidate in model_options:
+                                if candidate != selected_model:
+                                    model_chain.append(candidate)
+
+                        payload = None
+                        used_model = selected_model
+                        fallback_used = False
+                        last_error = None
+
+                        for idx, model_id in enumerate(model_chain):
+                            try:
+                                assistant = rag_chat_module.RagAssistant(
+                                    collection_name=collection_name,
+                                    gen_model=model_id,
+                                    hf_token=hf_token,
+                                )
+                                payload = assistant.answer_with_sources(
+                                    question=user_question,
+                                    k=top_k,
+                                    temperature=temperature,
+                                    max_tokens=max_tokens,
+                                )
+                                used_model = model_id
+                                fallback_used = idx > 0
+                                break
+                            except Exception as model_exc:
+                                last_error = model_exc
+                                continue
+
+                        if payload is None:
+                            raise RuntimeError(f"Fallaron todos los modelos configurados: {last_error}")
+
+                        elapsed_ms = int((time.perf_counter() - started) * 1000)
                         answer_text = payload["answer"]
                         st.markdown(answer_text)
+                        if fallback_used:
+                            st.info(f"Respuesta generada con fallback: {used_model}")
 
                         sources = payload.get("sources", [])
                         if sources:
@@ -1457,11 +1525,126 @@ with tab_rag:
                                     f"- [Fuente {source_item.get('index', '?')}] {src}{sheet_txt} | chunk {ch}{dist_txt}"
                                 )
 
+                        distances = [
+                            float(s.get("distance")) for s in sources if isinstance(s.get("distance"), (int, float))
+                        ]
+                        avg_distance = round(sum(distances) / len(distances), 6) if distances else None
+
+                        st.session_state.rag_last_payload = {
+                            "question": user_question,
+                            "answer": answer_text,
+                            "sources": sources,
+                            "requested_model": selected_model,
+                            "used_model": used_model,
+                            "fallback_used": fallback_used,
+                            "latency_ms": elapsed_ms,
+                            "avg_distance": avg_distance,
+                        }
+
+                        append_rag_log(
+                            {
+                                "timestamp": datetime.utcnow().isoformat(),
+                                "question": user_question,
+                                "collection": collection_name,
+                                "requested_model": selected_model,
+                                "used_model": used_model,
+                                "fallback_used": fallback_used,
+                                "top_k": top_k,
+                                "max_tokens": max_tokens,
+                                "temperature": temperature,
+                                "latency_ms": elapsed_ms,
+                                "answer_chars": len(answer_text),
+                                "sources_count": len(sources),
+                                "avg_distance": avg_distance,
+                                "status": "ok",
+                                "error": "",
+                            }
+                        )
+
                         save_text = answer_text
                         if payload.get("source_lines"):
                             save_text += "\n\nFuentes recuperadas:\n" + "\n".join(payload["source_lines"])
                         st.session_state.rag_messages.append({"role": "assistant", "content": save_text})
                     except Exception as exc:
+                        elapsed_ms = int((time.perf_counter() - started) * 1000)
                         err = f"No pude responder: {exc}"
                         st.error(err)
                         st.session_state.rag_messages.append({"role": "assistant", "content": err})
+                        append_rag_log(
+                            {
+                                "timestamp": datetime.utcnow().isoformat(),
+                                "question": user_question,
+                                "collection": collection_name,
+                                "requested_model": selected_model,
+                                "used_model": "",
+                                "fallback_used": False,
+                                "top_k": top_k,
+                                "max_tokens": max_tokens,
+                                "temperature": temperature,
+                                "latency_ms": elapsed_ms,
+                                "answer_chars": 0,
+                                "sources_count": 0,
+                                "avg_distance": "",
+                                "status": "error",
+                                "error": str(exc),
+                            }
+                        )
+
+    st.markdown("---")
+    st.markdown("### Evaluación RAG")
+
+    last_payload = st.session_state.get("rag_last_payload")
+    if not last_payload:
+        st.caption("Aún no hay una consulta para evaluar. Haz una pregunta en el chat técnico.")
+    else:
+        sources = last_payload.get("sources", [])
+        answer_text = last_payload.get("answer", "")
+        citations_in_answer = answer_text.count("[Fuente")
+        distances = [
+            float(s.get("distance")) for s in sources if isinstance(s.get("distance"), (int, float))
+        ]
+        avg_distance = (sum(distances) / len(distances)) if distances else None
+        max_distance = max(distances) if distances else None
+
+        e1, e2, e3, e4 = st.columns(4)
+        e1.metric("Fuentes recuperadas", len(sources))
+        e2.metric("Citas en respuesta", citations_in_answer)
+        e3.metric("Distancia media", f"{avg_distance:.4f}" if avg_distance is not None else "N/D")
+        e4.metric("Latencia", f"{last_payload.get('latency_ms', 0)} ms")
+
+        if len(sources) > 0 and citations_in_answer > 0:
+            st.success("Respuesta con señales de grounding: hay recuperación y citación explícita.")
+        elif len(sources) > 0:
+            st.warning("Hay contexto recuperado, pero faltan citas explícitas en el texto de respuesta.")
+        else:
+            st.error("No hubo recuperación de contexto; la respuesta puede no estar fundamentada.")
+
+        st.caption(
+            f"Modelo solicitado: {last_payload.get('requested_model')} | "
+            f"Modelo usado: {last_payload.get('used_model')} | "
+            f"Fallback: {'sí' if last_payload.get('fallback_used') else 'no'}"
+        )
+
+        if sources:
+            eval_df = pd.DataFrame(
+                [
+                    {
+                        "fuente": s.get("source", "unknown"),
+                        "hoja": s.get("sheet", ""),
+                        "chunk": s.get("chunk", "?"),
+                        "distancia": s.get("distance", ""),
+                    }
+                    for s in sources
+                ]
+            )
+            st.dataframe(eval_df, width="stretch", hide_index=True)
+
+        logs_path = Path("rag_agent") / "logs" / "rag_interactions.csv"
+        if logs_path.exists():
+            st.download_button(
+                label="Descargar auditoría RAG (CSV)",
+                data=logs_path.read_bytes(),
+                file_name="rag_interactions.csv",
+                mime="text/csv",
+                width="content",
+            )
