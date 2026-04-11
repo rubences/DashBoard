@@ -1479,6 +1479,7 @@ with tab_rag:
                         payload = None
                         used_model = selected_model
                         fallback_used = False
+                        used_backend = "unknown"
                         last_error = None
 
                         for idx, model_id in enumerate(model_chain):
@@ -1496,6 +1497,7 @@ with tab_rag:
                                 )
                                 used_model = model_id
                                 fallback_used = idx > 0
+                                used_backend = payload.get("backend", getattr(assistant, "backend", "unknown"))
                                 break
                             except Exception as model_exc:
                                 last_error = model_exc
@@ -1507,6 +1509,7 @@ with tab_rag:
                         elapsed_ms = int((time.perf_counter() - started) * 1000)
                         answer_text = payload["answer"]
                         st.markdown(answer_text)
+                        st.caption(f"Backend de recuperación activo: {used_backend}")
                         if fallback_used:
                             st.info(f"Respuesta generada con fallback: {used_model}")
 
@@ -1535,6 +1538,7 @@ with tab_rag:
                             "sources": sources,
                             "requested_model": selected_model,
                             "used_model": used_model,
+                            "used_backend": used_backend,
                             "fallback_used": fallback_used,
                             "latency_ms": elapsed_ms,
                             "avg_distance": avg_distance,
@@ -1547,6 +1551,7 @@ with tab_rag:
                                 "collection": collection_name,
                                 "requested_model": selected_model,
                                 "used_model": used_model,
+                                "used_backend": used_backend,
                                 "fallback_used": fallback_used,
                                 "top_k": top_k,
                                 "max_tokens": max_tokens,
@@ -1576,6 +1581,7 @@ with tab_rag:
                                 "collection": collection_name,
                                 "requested_model": selected_model,
                                 "used_model": "",
+                                "used_backend": "",
                                 "fallback_used": False,
                                 "top_k": top_k,
                                 "max_tokens": max_tokens,
@@ -1621,6 +1627,7 @@ with tab_rag:
         st.caption(
             f"Modelo solicitado: {last_payload.get('requested_model')} | "
             f"Modelo usado: {last_payload.get('used_model')} | "
+            f"Backend: {last_payload.get('used_backend', 'unknown')} | "
             f"Fallback: {'sí' if last_payload.get('fallback_used') else 'no'}"
         )
 
