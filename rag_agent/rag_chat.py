@@ -169,6 +169,7 @@ class RagAssistant:
             "answer": answer_text,
             "source_lines": source_lines,
             "sources": source_items,
+            "backend": self.backend,
         }
 
 
