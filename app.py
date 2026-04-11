@@ -8,6 +8,8 @@ import os
 import time
 import csv
 import sys
+import re
+import unicodedata
 import importlib.util
 from datetime import datetime
 from io import BytesIO
@@ -31,6 +33,9 @@ st.set_page_config(
 TELEMETRY_CSV = "moto3_goiania_telemetry.csv"
 TASKS_CSV = "moto3_goiania_tasks.csv"
 SETUP_CSV = "moto3_goiania_setup.csv"
+STANDARD_CONFIG_XLSX = "Mejora_Hoja_Config_Moto_mejorada.xlsx"
+STANDARD_CONFIG_CSV = "Mejora_EXPORT_LONG.csv"
+ASPAR_SPEC_CSV = "Spec_Domingo_completed.csv"
 PREFS_FILE = Path(".streamlit/ui_prefs.json")
 
 REQUIRED_TELEMETRY_COLUMNS = [
@@ -97,6 +102,83 @@ def load_data():
             df_telemetry[col] = pd.to_numeric(df_telemetry[col], errors="coerce")
 
     return df_telemetry, df_tasks, df_setup
+
+
+@st.cache_data
+def load_standard_config_template(path_xlsx=STANDARD_CONFIG_XLSX, path_csv=STANDARD_CONFIG_CSV):
+    xlsx_path = Path(path_xlsx)
+    csv_path = Path(path_csv)
+
+    if csv_path.exists():
+        try:
+            df_long = pd.read_csv(csv_path)
+        except Exception:
+            df_long = pd.DataFrame()
+    elif xlsx_path.exists():
+        try:
+            df_long = pd.read_excel(xlsx_path, sheet_name="EXPORT_LONG")
+        except Exception:
+            df_long = pd.DataFrame()
+    else:
+        return pd.DataFrame(), pd.DataFrame()
+
+    if xlsx_path.exists():
+        try:
+            df_listas = pd.read_excel(xlsx_path, sheet_name="LISTAS")
+        except Exception:
+            df_listas = pd.DataFrame()
+    else:
+        df_listas = pd.DataFrame()
+
+    expected_cols = [
+        "setting_id", "setting_name", "circuito_fecha", "sesion", "tiempo_vuelta",
+        "categoria", "parametro", "valor", "notas",
+    ]
+    if not df_long.empty:
+        for col in expected_cols:
+            if col not in df_long.columns:
+                df_long[col] = ""
+        df_long = df_long[expected_cols].copy()
+        for col in ["setting_name", "categoria", "parametro", "valor", "circuito_fecha", "sesion", "notas"]:
+            df_long[col] = df_long[col].fillna("").astype(str)
+
+    return df_long, df_listas
+
+
+@st.cache_data
+def load_aspar_spec_long(path=ASPAR_SPEC_CSV):
+    csv_path = Path(path)
+    if not csv_path.exists():
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception:
+        return pd.DataFrame()
+
+    setting_cols = [c for c in df.columns if c.upper().startswith("SETTING")]
+    if not setting_cols or "section" not in df.columns or "parameter" not in df.columns:
+        return pd.DataFrame()
+
+    long_df = df.melt(
+        id_vars=["section", "parameter"],
+        value_vars=setting_cols,
+        var_name="setting_name",
+        value_name="valor",
+    )
+    long_df = long_df.rename(columns={"section": "categoria", "parameter": "parametro"})
+    for col in ["setting_name", "categoria", "parametro", "valor"]:
+        long_df[col] = long_df[col].fillna("").astype(str)
+    return long_df
+
+
+def normalize_key(text):
+    if text is None or pd.isna(text):
+        return ""
+    txt = str(text).strip().lower()
+    txt = unicodedata.normalize("NFKD", txt)
+    txt = "".join(ch for ch in txt if not unicodedata.combining(ch))
+    txt = re.sub(r"[^a-z0-9]+", " ", txt)
+    return " ".join(txt.split())
 
 
 df_telemetry, df_tasks, df_setup = load_data()
@@ -448,9 +530,11 @@ with st.sidebar:
 # PESTAÑAS
 # ============================================================
 
-tab_goiania, tab_aspar, tab_rag = st.tabs([
+tab_goiania, tab_compare, tab_aspar, tab_standard, tab_rag = st.tabs([
     "🏁 Goiânia 2026",
+    "🚨 ESTÁNDAR vs ASPAR",
     "🏟️ Aspar — Spec Domingo",
+    "📘 Estándar Config Moto",
     "🤖 Asistente RAG",
 ])
 
@@ -1319,6 +1403,122 @@ with tab_aspar:
             data=spec_buffer.getvalue(),
             file_name="aspar_spec_domingo.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+with tab_compare:
+    st.title("🚨 Comparador Global: Estándar vs Aspar")
+    st.markdown(
+        "Vista prioritaria para validar desviaciones entre el estándar de configuración y el spec de Aspar. "
+        "Úsalo como control rápido antes de exportar setup a un circuito."
+    )
+
+    df_standard_long, _ = load_standard_config_template()
+    df_aspar_long = load_aspar_spec_long()
+
+    if df_standard_long.empty:
+        st.error("No hay estándar cargado. Revisa Mejora_EXPORT_LONG.csv o Mejora_Hoja_Config_Moto_mejorada.xlsx.")
+    elif df_aspar_long.empty:
+        st.error("No hay spec Aspar cargado. Revisa Spec_Domingo_completed.csv.")
+    else:
+        standard_comp = df_standard_long[["setting_name", "categoria", "parametro", "valor"]].copy()
+        aspar_comp = df_aspar_long[["setting_name", "categoria", "parametro", "valor"]].copy()
+
+        for comp_df in [standard_comp, aspar_comp]:
+            comp_df["k_setting"] = comp_df["setting_name"].apply(normalize_key)
+            comp_df["k_categoria"] = comp_df["categoria"].apply(normalize_key)
+            comp_df["k_parametro"] = comp_df["parametro"].apply(normalize_key)
+            comp_df["join_key"] = (
+                comp_df["k_setting"] + "|" + comp_df["k_categoria"] + "|" + comp_df["k_parametro"]
+            )
+
+        merged = standard_comp.merge(
+            aspar_comp,
+            on="join_key",
+            how="outer",
+            suffixes=("_std", "_aspar"),
+        )
+
+        merged["setting_name"] = merged["setting_name_std"].fillna(merged["setting_name_aspar"]).fillna("")
+        merged["categoria"] = merged["categoria_std"].fillna(merged["categoria_aspar"]).fillna("")
+        merged["parametro"] = merged["parametro_std"].fillna(merged["parametro_aspar"]).fillna("")
+        merged["valor_std"] = merged["valor_std"].fillna("").astype(str)
+        merged["valor_aspar"] = merged["valor_aspar"].fillna("").astype(str)
+
+        def classify_row(row):
+            std_val = row["valor_std"].strip()
+            asp_val = row["valor_aspar"].strip()
+            if std_val and asp_val:
+                return "✅ Coincide" if normalize_key(std_val) == normalize_key(asp_val) else "⚠️ Diferente"
+            if std_val and not asp_val:
+                return "🟦 Solo estándar"
+            if asp_val and not std_val:
+                return "🟧 Solo Aspar"
+            return "(vacío)"
+
+        merged["estado"] = merged.apply(classify_row, axis=1)
+
+        status_order = ["⚠️ Diferente", "🟦 Solo estándar", "🟧 Solo Aspar", "✅ Coincide"]
+        c1, c2, c3 = st.columns([2, 2, 2])
+        settings_cmp = sorted([s for s in merged["setting_name"].dropna().unique().tolist() if s])
+        setting_sel = c1.selectbox("Setting", settings_cmp if settings_cmp else ["SETTING 1"])
+        estado_sel = c2.multiselect("Estado", status_order, default=status_order)
+        search_cmp = c3.text_input("Buscar parámetro", placeholder="Ej: preload, presión, sag")
+
+        cmp_df = merged[merged["setting_name"] == setting_sel].copy() if settings_cmp else merged.copy()
+        cmp_df = cmp_df[cmp_df["estado"].isin(estado_sel)]
+        if search_cmp.strip():
+            cmp_df = cmp_df[
+                cmp_df["parametro"].str.contains(search_cmp.strip(), case=False, na=False)
+                | cmp_df["categoria"].str.contains(search_cmp.strip(), case=False, na=False)
+            ]
+
+        total_cmp = len(cmp_df)
+        diff_count = int((cmp_df["estado"] == "⚠️ Diferente").sum())
+        match_count = int((cmp_df["estado"] == "✅ Coincide").sum())
+        solo_std = int((cmp_df["estado"] == "🟦 Solo estándar").sum())
+        solo_aspar = int((cmp_df["estado"] == "🟧 Solo Aspar").sum())
+
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("🔍 Filas analizadas", total_cmp)
+        k2.metric("⚠️ Diferencias", diff_count)
+        k3.metric("✅ Coincidencias", match_count)
+        k4.metric("🧩 Cobertura", f"{(match_count / total_cmp * 100):.1f}%" if total_cmp else "0.0%")
+
+        pie_df = pd.DataFrame(
+            [
+                {"estado": "⚠️ Diferente", "count": diff_count},
+                {"estado": "✅ Coincide", "count": match_count},
+                {"estado": "🟦 Solo estándar", "count": solo_std},
+                {"estado": "🟧 Solo Aspar", "count": solo_aspar},
+            ]
+        )
+        pie_df = pie_df[pie_df["count"] > 0]
+        if not pie_df.empty:
+            fig_state = px.pie(
+                pie_df,
+                names="estado",
+                values="count",
+                title=f"Distribución de estados — {setting_sel}",
+                color="estado",
+                color_discrete_map={
+                    "⚠️ Diferente": "#ef4444",
+                    "✅ Coincide": "#16a34a",
+                    "🟦 Solo estándar": "#2563eb",
+                    "🟧 Solo Aspar": "#ea580c",
+                },
+            )
+            st.plotly_chart(fig_state, width="stretch")
+
+        out_cols = ["setting_name", "categoria", "parametro", "valor_std", "valor_aspar", "estado"]
+        out_df = cmp_df[out_cols].sort_values(["estado", "categoria", "parametro"])
+        st.dataframe(out_df, width="stretch", hide_index=True)
+
+        st.download_button(
+            label="Descargar comparación (CSV)",
+            data=out_df.to_csv(index=False).encode("utf-8"),
+            file_name=f"comparador_estandar_vs_aspar_{setting_sel}.csv".replace(" ", "_"),
+            mime="text/csv",
+            width="content",
         )
 
 with tab_rag:
