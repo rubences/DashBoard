@@ -709,6 +709,33 @@ with tab_goiania:
         help="Mínimo legal Race: 1.65 bar"
     )
 
+    st.markdown("### 🎯 Cumplimiento de objetivos de sesión")
+    q1, q2, q3 = st.columns(3)
+    target_lap = q1.number_input("Objetivo mejor vuelta (s)", min_value=80.0, max_value=120.0, value=93.0, step=0.1)
+    target_vmax = q2.number_input("Objetivo velocidad punta (km/h)", min_value=250.0, max_value=320.0, value=289.0, step=1.0)
+    target_temp_max = q3.number_input("Temp. derecha máxima (°C)", min_value=80.0, max_value=120.0, value=95.0, step=1.0)
+
+    c_ok_lap = best_lap is not None and not pd.isna(best_lap) and best_lap <= target_lap
+    c_ok_vmax = vmax is not None and not pd.isna(vmax) and vmax >= target_vmax
+    c_ok_temp = temp_right is not None and not pd.isna(temp_right) and temp_right <= target_temp_max
+    c_ok_anti = anti_squat is not None and not pd.isna(anti_squat) and 108 <= anti_squat <= 112
+    c_ok_press = p_rear is not None and not pd.isna(p_rear) and p_rear >= 1.65
+
+    compliance_df = pd.DataFrame(
+        [
+            {"Control": "Lap time", "Objetivo": f"<= {target_lap:.2f}s", "Actual": fmt_num(best_lap, 2, " s"), "Estado": "✅" if c_ok_lap else "⚠️"},
+            {"Control": "Velocidad punta", "Objetivo": f">= {target_vmax:.0f} km/h", "Actual": fmt_num(vmax, 0, " km/h"), "Estado": "✅" if c_ok_vmax else "⚠️"},
+            {"Control": "Temp. derecha", "Objetivo": f"<= {target_temp_max:.0f} °C", "Actual": fmt_num(temp_right, 1, " °C"), "Estado": "✅" if c_ok_temp else "⚠️"},
+            {"Control": "Anti-squat", "Objetivo": "108%-112%", "Actual": fmt_num(anti_squat, 1, " %"), "Estado": "✅" if c_ok_anti else "⚠️"},
+            {"Control": "Presión trasera", "Objetivo": ">= 1.65 bar", "Actual": fmt_num(p_rear, 2, " bar"), "Estado": "✅" if c_ok_press else "⚠️"},
+        ]
+    )
+    pass_rate = (compliance_df["Estado"] == "✅").mean() * 100
+    csum1, csum2 = st.columns([1, 3])
+    csum1.metric("QA sesión", f"{pass_rate:.0f}%")
+    csum2.progress(pass_rate / 100, text=f"Controles en objetivo: {int((compliance_df['Estado'] == '✅').sum())}/{len(compliance_df)}")
+    st.dataframe(compliance_df, width="stretch", hide_index=True)
+
     st.markdown("---")
 
     # ============================================================
@@ -1996,6 +2023,8 @@ with tab_standard:
     else:
         if "standard_working_df" not in st.session_state:
             st.session_state.standard_working_df = df_standard_long.copy()
+        if "standard_original_df" not in st.session_state:
+            st.session_state.standard_original_df = df_standard_long.copy()
 
         working_df = st.session_state.standard_working_df.copy()
 
@@ -2119,7 +2148,32 @@ with tab_standard:
 
         if a2.button("↺ Resetear matriz (recargar plantilla)", width="stretch"):
             st.session_state.standard_working_df = df_standard_long.copy()
+            st.session_state.standard_original_df = df_standard_long.copy()
             st.rerun()
+
+        orig_df = st.session_state.standard_original_df.copy()
+        current_df = st.session_state.standard_working_df.copy()
+        diff_base = orig_df.merge(
+            current_df,
+            on=["setting_name", "categoria", "parametro"],
+            how="outer",
+            suffixes=("_orig", "_curr"),
+        )
+        diff_base["valor_orig"] = diff_base["valor_orig"].fillna("").astype(str)
+        diff_base["valor_curr"] = diff_base["valor_curr"].fillna("").astype(str)
+        changes_df = diff_base[diff_base["valor_orig"] != diff_base["valor_curr"]][
+            ["setting_name", "categoria", "parametro", "valor_orig", "valor_curr"]
+        ].copy()
+        st.metric("🧾 Cambios no guardados en sesión", len(changes_df))
+        if not changes_df.empty:
+            st.dataframe(changes_df, width="stretch", hide_index=True)
+            st.download_button(
+                label="Descargar diff de cambios (CSV)",
+                data=changes_df.to_csv(index=False).encode("utf-8"),
+                file_name="estandar_cambios_diff.csv",
+                mime="text/csv",
+                width="content",
+            )
 
         st.markdown("---")
         st.subheader("🏁 Generador base por circuito")
