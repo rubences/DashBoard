@@ -1276,7 +1276,7 @@ with tab_aspar:
                 return "color: #15803d"
 
             st.dataframe(
-                diff_df.style.applymap(color_estado, subset=["Estado"]),
+                diff_df.style.map(color_estado, subset=["Estado"]),
                 use_container_width=True,
                 hide_index=True,
             )
