@@ -62,6 +62,27 @@ class RagAssistant:
         )
 
     def answer(self, question: str, k: int, temperature: float, max_tokens: int) -> str:
+        payload = self.answer_with_sources(
+            question=question,
+            k=k,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        lines = [
+            payload["answer"],
+            "",
+            "Fuentes recuperadas:",
+            *payload["source_lines"],
+        ]
+        return "\n".join(lines)
+
+    def answer_with_sources(
+        self,
+        question: str,
+        k: int,
+        temperature: float,
+        max_tokens: int,
+    ) -> Dict:
         contexts = self.retrieve(question, k=k)
         prompt = self.build_prompt(question, contexts)
 
@@ -79,15 +100,29 @@ class RagAssistant:
         )
         answer_text = response.choices[0].message.content
 
-        sources = []
-        for i, (_, meta, _) in enumerate(contexts, start=1):
+        source_lines = []
+        source_items = []
+        for i, (_, meta, dist) in enumerate(contexts, start=1):
             source = meta.get("source", "unknown")
             chunk = meta.get("chunk", "?")
             sheet = meta.get("sheet", "")
             suffix = f" (sheet: {sheet})" if sheet else ""
-            sources.append(f"[Fuente {i}] {source}{suffix} | chunk {chunk}")
+            source_lines.append(f"[Fuente {i}] {source}{suffix} | chunk {chunk}")
+            source_items.append(
+                {
+                    "index": i,
+                    "source": source,
+                    "chunk": chunk,
+                    "sheet": sheet,
+                    "distance": dist,
+                }
+            )
 
-        return f"{answer_text}\n\nFuentes recuperadas:\n" + "\n".join(sources)
+        return {
+            "answer": answer_text,
+            "source_lines": source_lines,
+            "sources": source_items,
+        }
 
 
 def parse_args() -> argparse.Namespace:

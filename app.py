@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import math
 import json
+import os
 from io import BytesIO
 from pathlib import Path
 
@@ -442,7 +443,11 @@ with st.sidebar:
 # PESTAÑAS
 # ============================================================
 
-tab_goiania, tab_aspar = st.tabs(["🏁 Goiânia 2026", "🏟️ Aspar — Spec Domingo"])
+tab_goiania, tab_aspar, tab_rag = st.tabs([
+    "🏁 Goiânia 2026",
+    "🏟️ Aspar — Spec Domingo",
+    "🤖 Asistente RAG",
+])
 
 with tab_goiania:
     # ============================================================
@@ -1310,3 +1315,153 @@ with tab_aspar:
             file_name="aspar_spec_domingo.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+
+with tab_rag:
+    # ============================================================
+    # ASISTENTE RAG
+    # ============================================================
+
+    st.title("🤖 Asistente documental Moto3 (RAG)")
+    st.markdown(
+        "Haz preguntas sobre tus CSV/XLSX/DOCX/PDF. "
+        "El asistente recupera contexto local de Chroma y responde con fuentes."
+    )
+
+    try:
+        from rag_agent import rag_build as rag_build_module
+        from rag_agent import rag_chat as rag_chat_module
+    except Exception as exc:
+        st.error("No se pudieron cargar los módulos RAG. Revisa que exista la carpeta 'rag_agent'.")
+        st.exception(exc)
+        st.stop()
+
+    st.markdown("---")
+
+    c1, c2, c3 = st.columns(3)
+    model_options = [
+        "Qwen/Qwen2.5-1.5B-Instruct",
+        "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+    ]
+    selected_model = c1.selectbox("Modelo generador", model_options, index=0)
+    top_k = int(c2.slider("Top-k recuperación", min_value=2, max_value=8, value=4, step=1))
+    max_tokens = int(c3.slider("Máx. tokens", min_value=128, max_value=1024, value=500, step=64))
+
+    default_token = st.session_state.get("rag_hf_token", "")
+    if not default_token:
+        try:
+            default_token = st.secrets.get("HF_TOKEN", "")
+        except Exception:
+            default_token = ""
+    if not default_token:
+        default_token = os.getenv("HF_TOKEN", "")
+    hf_token = st.text_input(
+        "HF_TOKEN",
+        value=default_token,
+        key="rag_hf_token",
+        type="password",
+        help="Token de Hugging Face para usar InferenceClient",
+    )
+
+    st.caption("Tip: puedes definir HF_TOKEN en .streamlit/secrets.toml o variable de entorno para no escribirlo en cada sesión.")
+
+    st.markdown("### Índice vectorial")
+    i1, i2, i3 = st.columns(3)
+    collection_name = i1.text_input("Colección Chroma", value="moto3_docs")
+    chunk_size = int(i2.number_input("Chunk size", min_value=300, max_value=2000, value=900, step=50))
+    overlap = int(i3.number_input("Overlap", min_value=50, max_value=400, value=150, step=10))
+
+    rebuild_col, status_col = st.columns([1, 2])
+    if rebuild_col.button("Reconstruir índice", width="stretch"):
+        with st.spinner("Indexando documentos..."):
+            try:
+                rag_build_module.build_index(
+                    collection_name=collection_name,
+                    chunk_size=chunk_size,
+                    overlap=overlap,
+                    rebuild=True,
+                )
+                st.session_state["rag_ready"] = True
+                st.success("Índice reconstruido correctamente.")
+            except Exception as exc:
+                st.session_state["rag_ready"] = False
+                st.error(f"Error al indexar: {exc}")
+
+    try:
+        chroma_client = rag_chat_module.chromadb.PersistentClient(path=str(rag_chat_module.CHROMA_DIR))
+        existing_collections = [col.name for col in chroma_client.list_collections()]
+        if collection_name in existing_collections:
+            status_col.success(f"Colección disponible: {collection_name}")
+            st.session_state["rag_ready"] = True
+        else:
+            status_col.warning("No hay colección creada aún. Pulsa 'Reconstruir índice'.")
+    except Exception:
+        status_col.warning("No se pudo leer el estado de Chroma.")
+
+    st.markdown("---")
+    st.markdown("### Chat técnico")
+
+    if "rag_messages" not in st.session_state:
+        st.session_state.rag_messages = []
+
+    for msg in st.session_state.rag_messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    demo_col1, demo_col2 = st.columns([1, 2])
+    if demo_col1.button("Pregunta demo", width="stretch"):
+        st.session_state["rag_demo_question"] = "¿Qué setting prioriza tracción y qué cambios aplica en geometría?"
+    demo_col2.caption("Atajo de validación: lanza una pregunta de prueba con 1 clic.")
+
+    user_question = st.chat_input("Escribe tu pregunta técnica")
+    if not user_question and st.session_state.get("rag_demo_question"):
+        user_question = st.session_state.pop("rag_demo_question")
+
+    if user_question:
+        st.session_state.rag_messages.append({"role": "user", "content": user_question})
+        with st.chat_message("user"):
+            st.markdown(user_question)
+
+        with st.chat_message("assistant"):
+            if not hf_token:
+                msg = "Necesito HF_TOKEN para consultar el modelo remoto de Hugging Face."
+                st.warning(msg)
+                st.session_state.rag_messages.append({"role": "assistant", "content": msg})
+            else:
+                with st.spinner("Recuperando contexto y generando respuesta..."):
+                    try:
+                        assistant = rag_chat_module.RagAssistant(
+                            collection_name=collection_name,
+                            gen_model=selected_model,
+                            hf_token=hf_token,
+                        )
+                        payload = assistant.answer_with_sources(
+                            question=user_question,
+                            k=top_k,
+                            temperature=0.2,
+                            max_tokens=max_tokens,
+                        )
+                        answer_text = payload["answer"]
+                        st.markdown(answer_text)
+
+                        sources = payload.get("sources", [])
+                        if sources:
+                            st.markdown("**Fuentes recuperadas**")
+                            for source_item in sources:
+                                src = source_item.get("source", "unknown")
+                                ch = source_item.get("chunk", "?")
+                                sh = source_item.get("sheet", "")
+                                dist = source_item.get("distance", None)
+                                sheet_txt = f" | hoja: {sh}" if sh else ""
+                                dist_txt = f" | distancia: {dist:.4f}" if isinstance(dist, (int, float)) else ""
+                                st.markdown(
+                                    f"- [Fuente {source_item.get('index', '?')}] {src}{sheet_txt} | chunk {ch}{dist_txt}"
+                                )
+
+                        save_text = answer_text
+                        if payload.get("source_lines"):
+                            save_text += "\n\nFuentes recuperadas:\n" + "\n".join(payload["source_lines"])
+                        st.session_state.rag_messages.append({"role": "assistant", "content": save_text})
+                    except Exception as exc:
+                        err = f"No pude responder: {exc}"
+                        st.error(err)
+                        st.session_state.rag_messages.append({"role": "assistant", "content": err})
