@@ -5,9 +5,14 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
-from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
 from sentence_transformers import SentenceTransformer
+
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    def load_dotenv(*_args, **_kwargs):
+        return False
 
 try:
     import chromadb
