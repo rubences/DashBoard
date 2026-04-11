@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
-from huggingface_hub import InferenceClient
+try:
+    from huggingface_hub import InferenceClient
+except ModuleNotFoundError:
+    InferenceClient = None
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -69,7 +72,7 @@ class RagAssistant:
                     "Construye el índice desde la pestaña RAG (Reconstruir índice)."
                 )
 
-        self.inference = InferenceClient(api_key=hf_token)
+        self.inference = InferenceClient(api_key=hf_token) if InferenceClient is not None else None
 
     def retrieve(self, query: str, k: int = 4) -> List[Tuple[str, Dict, float]]:
         q_emb = None
@@ -166,21 +169,32 @@ class RagAssistant:
         max_tokens: int,
     ) -> Dict:
         contexts = self.retrieve(question, k=k)
-        prompt = self.build_prompt(question, contexts)
-
-        response = self.inference.chat_completion(
-            model=self.gen_model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Responde de forma tecnica, breve y fiel al contexto.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        answer_text = response.choices[0].message.content
+        answer_text = ""
+        if self.inference is None:
+            snippet_lines = []
+            for idx, (doc, _meta, _dist) in enumerate(contexts[:3], start=1):
+                compact = " ".join(str(doc).split())
+                snippet_lines.append(f"[Fuente {idx}] {compact[:380]}")
+            answer_text = (
+                "No puedo generar respuesta con modelo remoto porque falta la dependencia "
+                "huggingface_hub en el entorno. Te dejo el contexto más relevante recuperado:"
+                "\n\n" + "\n\n".join(snippet_lines)
+            )
+        else:
+            prompt = self.build_prompt(question, contexts)
+            response = self.inference.chat_completion(
+                model=self.gen_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Responde de forma tecnica, breve y fiel al contexto.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            answer_text = response.choices[0].message.content
 
         source_lines = []
         source_items = []
