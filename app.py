@@ -1428,15 +1428,14 @@ with tab_rag:
                 st.error(f"Error al indexar: {exc}")
 
     try:
-        chroma_client = rag_chat_module.chromadb.PersistentClient(path=str(rag_chat_module.CHROMA_DIR))
-        existing_collections = [col.name for col in chroma_client.list_collections()]
-        if collection_name in existing_collections:
-            status_col.success(f"Colección disponible: {collection_name}")
+        exists, backend_name = rag_chat_module.collection_exists(collection_name)
+        if exists:
+            status_col.success(f"Colección disponible: {collection_name} (backend: {backend_name})")
             st.session_state["rag_ready"] = True
         else:
             status_col.warning("No hay colección creada aún. Pulsa 'Reconstruir índice'.")
     except Exception:
-        status_col.warning("No se pudo leer el estado de Chroma.")
+        status_col.warning("No se pudo leer el estado del índice vectorial.")
 
     st.markdown("---")
     st.markdown("### Chat técnico")

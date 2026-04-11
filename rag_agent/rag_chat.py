@@ -1,15 +1,22 @@
 import argparse
+import json
 import os
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-import chromadb
+import numpy as np
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
 from sentence_transformers import SentenceTransformer
 
+try:
+    import chromadb
+except ModuleNotFoundError:
+    chromadb = None
+
 BASE_DIR = Path(__file__).resolve().parent
 CHROMA_DIR = BASE_DIR / "chroma_db"
+LOCAL_INDEX_DIR = BASE_DIR / "local_index"
 COLLECTION_NAME = "moto3_docs"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 GEN_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
@@ -25,19 +32,59 @@ class RagAssistant:
         self.hf_token = hf_token
 
         self.embedder = SentenceTransformer(EMBED_MODEL)
-        self.client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-        self.collection = self.client.get_collection(collection_name)
+        self.backend = None
+        self.collection = None
+        self.local_embeddings = None
+        self.local_records = None
+
+        if chromadb is not None:
+            try:
+                client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+                self.collection = client.get_collection(collection_name)
+                self.backend = "chroma"
+            except Exception:
+                self.collection = None
+
+        if self.collection is None:
+            emb_path, rec_path = get_local_index_paths(collection_name)
+            if emb_path.exists() and rec_path.exists():
+                self.local_embeddings = np.load(emb_path)
+                with rec_path.open("r", encoding="utf-8") as f:
+                    self.local_records = [json.loads(line) for line in f if line.strip()]
+                self.backend = "local_index"
+            else:
+                raise RuntimeError(
+                    f"No hay índice disponible para '{collection_name}'. "
+                    "Construye el índice desde la pestaña RAG (Reconstruir índice)."
+                )
+
         self.inference = InferenceClient(api_key=hf_token)
 
     def retrieve(self, query: str, k: int = 4) -> List[Tuple[str, Dict, float]]:
         q_emb = self.embedder.encode([query], normalize_embeddings=True).tolist()[0]
-        result = self.collection.query(query_embeddings=[q_emb], n_results=k)
+        if self.backend == "chroma":
+            result = self.collection.query(query_embeddings=[q_emb], n_results=k)
 
-        docs = result.get("documents", [[]])[0]
-        metas = result.get("metadatas", [[]])[0]
-        distances = result.get("distances", [[]])[0]
+            docs = result.get("documents", [[]])[0]
+            metas = result.get("metadatas", [[]])[0]
+            distances = result.get("distances", [[]])[0]
+            return list(zip(docs, metas, distances))
 
-        return list(zip(docs, metas, distances))
+        # Local cosine retrieval fallback.
+        q_vec = np.asarray(q_emb, dtype=np.float32)
+        emb = self.local_embeddings
+        sims = emb @ q_vec
+        top_indices = np.argsort(-sims)[:k]
+
+        results = []
+        for idx in top_indices:
+            rec = self.local_records[int(idx)]
+            doc = rec.get("text", "")
+            meta = rec.get("meta", {})
+            sim = float(sims[int(idx)])
+            distance = 1.0 - sim
+            results.append((doc, meta, distance))
+        return results
 
     @staticmethod
     def build_prompt(question: str, contexts: List[Tuple[str, Dict, float]]) -> str:
@@ -123,6 +170,28 @@ class RagAssistant:
             "source_lines": source_lines,
             "sources": source_items,
         }
+
+
+def get_local_index_paths(collection_name: str) -> Tuple[Path, Path]:
+    emb_path = LOCAL_INDEX_DIR / f"{collection_name}_embeddings.npy"
+    rec_path = LOCAL_INDEX_DIR / f"{collection_name}_records.jsonl"
+    return emb_path, rec_path
+
+
+def collection_exists(collection_name: str) -> Tuple[bool, str]:
+    if chromadb is not None:
+        try:
+            client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+            names = [col.name for col in client.list_collections()]
+            if collection_name in names:
+                return True, "chroma"
+        except Exception:
+            pass
+
+    emb_path, rec_path = get_local_index_paths(collection_name)
+    if emb_path.exists() and rec_path.exists():
+        return True, "local_index"
+    return False, "none"
 
 
 def parse_args() -> argparse.Namespace:

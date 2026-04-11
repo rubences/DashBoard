@@ -1,18 +1,25 @@
 import argparse
+import json
 import uuid
 from pathlib import Path
 from typing import Dict, Iterable, List
 
-import chromadb
+import numpy as np
 import pandas as pd
 from docx import Document
 from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
 
+try:
+    import chromadb
+except ModuleNotFoundError:
+    chromadb = None
+
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
 DEFAULT_DATA_DIRS = [PROJECT_ROOT / "data", PROJECT_ROOT]
 CHROMA_DIR = BASE_DIR / "chroma_db"
+LOCAL_INDEX_DIR = BASE_DIR / "local_index"
 COLLECTION_NAME = "moto3_docs"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
@@ -178,20 +185,44 @@ def build_index(collection_name: str, chunk_size: int, overlap: int, rebuild: bo
         for d in docs
     ]
 
-    embeddings = embedder.encode(texts, normalize_embeddings=True, batch_size=64).tolist()
+    embeddings = embedder.encode(texts, normalize_embeddings=True, batch_size=64)
 
-    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-    if rebuild:
-        try:
-            client.delete_collection(collection_name)
-        except Exception:
-            pass
+    # Always persist a local fallback index to avoid hard dependency on chromadb.
+    LOCAL_INDEX_DIR.mkdir(parents=True, exist_ok=True)
+    np.save(LOCAL_INDEX_DIR / f"{collection_name}_embeddings.npy", embeddings)
+    with (LOCAL_INDEX_DIR / f"{collection_name}_records.jsonl").open("w", encoding="utf-8") as f:
+        for doc_id, text, meta in zip(ids, texts, metas):
+            f.write(
+                json.dumps(
+                    {
+                        "id": doc_id,
+                        "text": text,
+                        "meta": meta,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
 
-    collection = client.get_or_create_collection(name=collection_name)
-    collection.add(ids=ids, documents=texts, metadatas=metas, embeddings=embeddings)
+    used_backends = ["local_index"]
+
+    if chromadb is not None:
+        client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+        if rebuild:
+            try:
+                client.delete_collection(collection_name)
+            except Exception:
+                pass
+
+        collection = client.get_or_create_collection(name=collection_name)
+        collection.add(ids=ids, documents=texts, metadatas=metas, embeddings=embeddings.tolist())
+        used_backends.append("chroma")
 
     print(f"Indexed {len(docs)} chunks in '{collection_name}'.")
-    print(f"Chroma path: {CHROMA_DIR}")
+    print(f"Backends: {', '.join(used_backends)}")
+    if chromadb is not None:
+        print(f"Chroma path: {CHROMA_DIR}")
+    print(f"Local index path: {LOCAL_INDEX_DIR}")
 
 
 def parse_args() -> argparse.Namespace:
