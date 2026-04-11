@@ -89,3 +89,32 @@ Preferencias UI persistentes:
 Se guardan automáticamente en `.streamlit/ui_prefs.json`.
 Incluye perfil de vista, filtros, paginación, rol/sesión seleccionados y controles del circuito.
 Puedes resetearlas desde el botón `Restablecer preferencias` en la barra lateral.
+
+## Prompt recomendado para resumir la aplicación
+
+Usa este prompt para generar un resumen ejecutivo y técnico de la app:
+
+```text
+Actúa como consultor senior de analítica y software para motorsport.
+
+Quiero que resumas esta aplicación de Streamlit de forma profesional, clara y orientada a negocio y operación técnica.
+
+Contexto de la app:
+- Es un dashboard Moto3 para análisis de telemetría, setup, operación por roles y estandarización multi-circuito.
+- Incluye pestañas de Goiânia (KPIs, alertas, comparador de sesiones, análisis avanzado, mapa de circuito, kanban y tareas), Aspar (spec comparativo por settings), Estándar Config Moto (matriz editable con validaciones y exportación), comparador Estándar vs Aspar, asistente RAG, diagramas avanzados (GG proxy y mapas técnicos) y una sección de avances tecnológicos 2016-2026.
+- Permite exportaciones en CSV/Excel, persistencia de preferencias UI y control de calidad de datos.
+
+Formato de salida requerido:
+1) Resumen ejecutivo (5-8 líneas)
+2) Problema que resuelve
+3) Capacidades principales (bullet points)
+4) Valor para perfiles clave (piloto, ingeniero, telemétrico, jefe de mecánicos)
+5) Diferenciadores frente a un dashboard estándar
+6) Riesgos o limitaciones actuales
+7) Próximos pasos recomendados (priorizados)
+
+Estilo:
+- Español profesional
+- Preciso, sin relleno
+- Con enfoque en impacto operativo y toma de decisiones
+```
