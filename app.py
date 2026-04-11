@@ -1694,3 +1694,113 @@ with tab_rag:
                 mime="text/csv",
                 width="content",
             )
+
+with tab_standard:
+    st.title("📘 Estándar de Configuración Moto")
+    st.markdown(
+        "Base estandarizada para reutilizar setup entre circuitos. "
+        "Fuente principal: EXPORT_LONG de Mejora_Hoja_Config_Moto_mejorada.xlsx."
+    )
+
+    df_standard_long, df_standard_lists = load_standard_config_template()
+
+    if df_standard_long.empty:
+        st.error(
+            "No pude cargar la plantilla estándar. Verifica que exista Mejora_Hoja_Config_Moto_mejorada.xlsx "
+            "con la hoja EXPORT_LONG."
+        )
+    else:
+        settings = sorted([s for s in df_standard_long["setting_name"].unique().tolist() if s])
+        categories = sorted([c for c in df_standard_long["categoria"].unique().tolist() if c])
+        total_rows = len(df_standard_long)
+        filled_rows = int(df_standard_long["valor"].str.strip().ne("").sum())
+        fill_pct = (filled_rows / total_rows * 100) if total_rows else 0
+
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("⚙️ Settings estándar", len(settings))
+        k2.metric("📦 Categorías", len(categories))
+        k3.metric("📐 Parámetros", total_rows)
+        k4.metric("✅ Completitud", f"{fill_pct:.1f}%")
+
+        st.markdown("---")
+
+        f1, f2, f3 = st.columns([2, 2, 2])
+        selected_categories = f1.multiselect("Filtrar categorías", categories, default=categories)
+        selected_settings = f2.multiselect("Filtrar settings", settings, default=settings)
+        search_param = f3.text_input("Buscar parámetro", placeholder="Ej: Rebound, Pressure, SAG")
+
+        filtered_standard = df_standard_long[
+            df_standard_long["categoria"].isin(selected_categories)
+            & df_standard_long["setting_name"].isin(selected_settings)
+        ].copy()
+        if search_param.strip():
+            filtered_standard = filtered_standard[
+                filtered_standard["parametro"].str.contains(search_param.strip(), case=False, na=False)
+            ]
+
+        comp_by_setting = (
+            filtered_standard.assign(filled=filtered_standard["valor"].str.strip().ne(""))
+            .groupby("setting_name", as_index=False)["filled"]
+            .mean()
+        ) if not filtered_standard.empty else pd.DataFrame(columns=["setting_name", "filled"])
+        if not comp_by_setting.empty:
+            comp_by_setting["completitud_pct"] = comp_by_setting["filled"] * 100
+            fig_comp = px.bar(
+                comp_by_setting,
+                x="setting_name",
+                y="completitud_pct",
+                title="Completitud por setting (filtro actual)",
+                color="completitud_pct",
+                color_continuous_scale="Blues",
+            )
+            fig_comp.update_layout(template="plotly_white", xaxis_title="Setting", yaxis_title="% completitud")
+            st.plotly_chart(fig_comp, width="stretch")
+
+        pivot_df = pd.pivot_table(
+            filtered_standard,
+            index=["categoria", "parametro"],
+            columns="setting_name",
+            values="valor",
+            aggfunc="first",
+        ).reset_index() if not filtered_standard.empty else pd.DataFrame()
+
+        st.subheader("📋 Matriz estándar por categoría y setting")
+        st.dataframe(pivot_df if not pivot_df.empty else filtered_standard, width="stretch", hide_index=True)
+
+        st.markdown("---")
+        st.subheader("🏁 Generador base por circuito")
+        g1, g2, g3 = st.columns(3)
+        circuito_input = g1.text_input("Circuito / Fecha", value="Circuito - Fecha")
+        sesion_input = g2.text_input("Sesión", value="FP1")
+        referencia_setting = g3.selectbox("Setting de referencia", settings if settings else ["SETTING 1"])
+
+        export_base = filtered_standard[filtered_standard["setting_name"] == referencia_setting].copy()
+        export_base["circuito_fecha"] = circuito_input
+        export_base["sesion"] = sesion_input
+
+        if st.button("Generar estándar base", width="content"):
+            st.success(
+                f"Base estándar creada para {circuito_input} ({sesion_input}) usando {referencia_setting}."
+            )
+
+        e1, e2 = st.columns(2)
+        e1.download_button(
+            label="Descargar estándar filtrado (CSV)",
+            data=filtered_standard.to_csv(index=False).encode("utf-8"),
+            file_name="estandar_config_moto_filtrado.csv",
+            mime="text/csv",
+            width="content",
+        )
+        e2.download_button(
+            label="Descargar estándar base circuito (CSV)",
+            data=export_base.to_csv(index=False).encode("utf-8"),
+            file_name=f"estandar_{circuito_input}_{sesion_input}.csv".replace(" ", "_"),
+            mime="text/csv",
+            width="content",
+        )
+
+        with st.expander("Ver hoja LISTAS (catálogos)"):
+            if df_standard_lists.empty:
+                st.caption("La hoja LISTAS no está disponible o está vacía.")
+            else:
+                st.dataframe(df_standard_lists, width="stretch", hide_index=True)
