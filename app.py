@@ -7,6 +7,8 @@ import json
 import os
 import time
 import csv
+import sys
+import importlib.util
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -1333,10 +1335,31 @@ with tab_rag:
     try:
         from rag_agent import rag_build as rag_build_module
         from rag_agent import rag_chat as rag_chat_module
-    except Exception as exc:
-        st.error("No se pudieron cargar los módulos RAG. Revisa que exista la carpeta 'rag_agent'.")
-        st.exception(exc)
-        st.stop()
+    except Exception:
+        try:
+            root_path = Path(__file__).resolve().parent
+            if str(root_path) not in sys.path:
+                sys.path.insert(0, str(root_path))
+
+            rag_build_path = root_path / "rag_agent" / "rag_build.py"
+            rag_chat_path = root_path / "rag_agent" / "rag_chat.py"
+
+            if not rag_build_path.exists() or not rag_chat_path.exists():
+                raise FileNotFoundError("No se encontraron rag_build.py/rag_chat.py en la carpeta rag_agent.")
+
+            spec_build = importlib.util.spec_from_file_location("rag_build_module", rag_build_path)
+            spec_chat = importlib.util.spec_from_file_location("rag_chat_module", rag_chat_path)
+            if spec_build is None or spec_build.loader is None or spec_chat is None or spec_chat.loader is None:
+                raise ImportError("No se pudo crear el spec de importación dinámica para rag_agent.")
+
+            rag_build_module = importlib.util.module_from_spec(spec_build)
+            rag_chat_module = importlib.util.module_from_spec(spec_chat)
+            spec_build.loader.exec_module(rag_build_module)
+            spec_chat.loader.exec_module(rag_chat_module)
+        except Exception as exc:
+            st.error("No se pudieron cargar los módulos RAG. Revisa que exista la carpeta rag_agent y las dependencias instaladas.")
+            st.exception(exc)
+            st.stop()
 
     st.markdown("---")
 
