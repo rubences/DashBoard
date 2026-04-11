@@ -181,6 +181,52 @@ def normalize_key(text):
     return " ".join(txt.split())
 
 
+def validate_standard_value(parametro, valor):
+    """Valida formatos esperables para parámetros comunes del setup estándar."""
+    p = normalize_key(parametro)
+    v = str(valor).strip()
+    if not v:
+        return True, ""
+
+    if "presion" in p:
+        ok = bool(re.search(r"\d+(\.\d+)?\s*bar", v.lower()))
+        return ok, "Esperado formato de presión, ej. 1.65 bar"
+    if "sag" in p or "altura" in p or "length" in p or "longitud" in p:
+        ok = bool(re.search(r"\d+(\.\d+)?\s*mm", v.lower())) or v.lower() in {"base", "std"}
+        return ok, "Esperado formato en mm, ej. 35 mm"
+    if "temp" in p:
+        ok = bool(re.search(r"\d+(\.\d+)?\s*°?c", v.lower()))
+        return ok, "Esperado formato de temperatura, ej. 45 °C"
+    if "humedad" in p:
+        ok = bool(re.search(r"\d+(\.\d+)?\s*%", v))
+        return ok, "Esperado formato porcentaje, ej. 57%"
+    if "wind" in p or "viento" in p:
+        ok = bool(re.search(r"\d+(\.\d+)?\s*km/?h", v.lower()))
+        return ok, "Esperado formato velocidad, ej. 6 km/h"
+    if "maps" in p or "tc" in p or "eb" in p or "aw" in p:
+        ok = bool(re.search(r"\d+", v)) or v.upper() in {"ON", "OFF", "STD"}
+        return ok, "Esperado nivel numérico o estado ON/OFF"
+
+    return True, ""
+
+
+def build_validation_report(df_long):
+    report_rows = []
+    for _, row in df_long.iterrows():
+        ok, hint = validate_standard_value(row.get("parametro", ""), row.get("valor", ""))
+        if not ok:
+            report_rows.append(
+                {
+                    "setting_name": row.get("setting_name", ""),
+                    "categoria": row.get("categoria", ""),
+                    "parametro": row.get("parametro", ""),
+                    "valor": row.get("valor", ""),
+                    "sugerencia": hint,
+                }
+            )
+    return pd.DataFrame(report_rows)
+
+
 df_telemetry, df_tasks, df_setup = load_data()
 
 telemetry_missing = missing_columns(df_telemetry, REQUIRED_TELEMETRY_COLUMNS)
@@ -1512,6 +1558,27 @@ with tab_compare:
 
         out_cols = ["setting_name", "categoria", "parametro", "valor_std", "valor_aspar", "estado"]
         out_df = cmp_df[out_cols].sort_values(["estado", "categoria", "parametro"])
+
+        cat_diff_df = (
+            out_df[out_df["estado"] == "⚠️ Diferente"]
+            .groupby("categoria", as_index=False)
+            .size()
+            .rename(columns={"size": "diferencias"})
+            .sort_values("diferencias", ascending=False)
+        )
+        if not cat_diff_df.empty:
+            st.markdown("**Top categorías con más diferencias**")
+            fig_cat_diff = px.bar(
+                cat_diff_df.head(8),
+                x="categoria",
+                y="diferencias",
+                title=f"Ranking de desviaciones por categoría — {setting_sel}",
+                color="diferencias",
+                color_continuous_scale="Reds",
+            )
+            fig_cat_diff.update_layout(template="plotly_white", xaxis_title="Categoría", yaxis_title="Nº diferencias")
+            st.plotly_chart(fig_cat_diff, width="stretch")
+
         st.dataframe(out_df, width="stretch", hide_index=True)
 
         st.download_button(
@@ -1683,6 +1750,22 @@ with tab_rag:
 
     if "rag_messages" not in st.session_state:
         st.session_state.rag_messages = []
+
+    u1, u2 = st.columns([1, 1])
+    if u1.button("🧹 Limpiar chat", width="stretch"):
+        st.session_state.rag_messages = []
+        st.session_state.rag_last_payload = None
+        st.rerun()
+    if u2.button("⬇️ Exportar chat (CSV)", width="stretch"):
+        if st.session_state.rag_messages:
+            chat_export_df = pd.DataFrame(st.session_state.rag_messages)
+            st.download_button(
+                label="Descargar historial RAG",
+                data=chat_export_df.to_csv(index=False).encode("utf-8"),
+                file_name="rag_chat_history.csv",
+                mime="text/csv",
+                width="stretch",
+            )
 
     for msg in st.session_state.rag_messages:
         with st.chat_message(msg["role"]):
@@ -2013,6 +2096,18 @@ with tab_standard:
             )
             fig_comp.update_layout(template="plotly_white", xaxis_title="Setting", yaxis_title="% completitud")
             st.plotly_chart(fig_comp, width="stretch")
+
+        validation_df = build_validation_report(filtered_standard)
+        v1, v2 = st.columns(2)
+        v1.metric("🧪 Validaciones con warning", int(len(validation_df)))
+        v2.metric(
+            "📊 Calidad de formato",
+            f"{(1 - len(validation_df) / max(1, len(filtered_standard))) * 100:.1f}%"
+            if len(filtered_standard) > 0 else "100.0%"
+        )
+        if not validation_df.empty:
+            st.warning("Se detectaron formatos mejorables en la matriz (presiones, temperaturas, SAG, etc.).")
+            st.dataframe(validation_df, width="stretch", hide_index=True)
 
         a1, a2 = st.columns(2)
         if a1.button("💾 Guardar cambios en Mejora_EXPORT_LONG.csv", width="stretch"):
