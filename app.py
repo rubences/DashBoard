@@ -26,6 +26,112 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+    :root {
+        --bg-main: #121416;
+        --bg-card: #1A1F26;
+        --bg-soft: #20262f;
+        --text-main: #E6EBF2;
+        --text-muted: #A7B2C3;
+        --accent-primary: #00D1FF;
+        --accent-secondary: #39FF14;
+        --accent-tertiary: #FFB800;
+        --border-soft: #2D3642;
+    }
+
+    .stApp {
+        background: radial-gradient(1200px 700px at 15% -10%, #152635 0%, var(--bg-main) 45%), var(--bg-main);
+        color: var(--text-main);
+        font-family: 'Inter', sans-serif;
+    }
+
+    h1, h2, h3 {
+        font-family: 'Space Grotesk', sans-serif !important;
+        letter-spacing: 0.2px;
+    }
+
+    div[data-testid="stMetric"] {
+        background: linear-gradient(180deg, #1d232c 0%, #171c24 100%);
+        border: 1px solid var(--border-soft);
+        border-radius: 12px;
+        padding: 10px 12px;
+    }
+
+    div[data-testid="stMetricLabel"] {
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+
+    div[data-testid="stMetricValue"] {
+        color: var(--accent-primary);
+    }
+
+    div[data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+
+    div[data-baseweb="tab-list"] button {
+        background: #1c2129;
+        border: 1px solid var(--border-soft);
+        border-radius: 10px;
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+
+    div[data-baseweb="tab-list"] button[aria-selected="true"] {
+        background: linear-gradient(90deg, #00d1ff22 0%, #39ff1418 100%);
+        border-color: var(--accent-primary);
+        color: var(--text-main);
+    }
+
+    .stButton > button,
+    .stDownloadButton > button {
+        background: linear-gradient(90deg, #00D1FF 0%, #0ab1d6 100%);
+        color: #0e1319;
+        border: 0;
+        border-radius: 10px;
+        font-weight: 700;
+    }
+
+    .stButton > button:hover,
+    .stDownloadButton > button:hover {
+        filter: brightness(1.07);
+    }
+
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #161b22 0%, #11161d 100%);
+        border-right: 1px solid var(--border-soft);
+    }
+
+    div[data-testid="stDataFrame"] {
+        border: 1px solid var(--border-soft);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    [data-testid="stExpander"] {
+        border: 1px solid var(--border-soft);
+        border-radius: 12px;
+    }
+
+    .stTextInput input, .stNumberInput input {
+        background: #171c24 !important;
+        border: 1px solid var(--border-soft) !important;
+        color: var(--text-main) !important;
+    }
+
+    div[data-testid="stProgressBar"] > div > div > div {
+        background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary));
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # ============================================================
 # CARGA DE DATOS
 # ============================================================
