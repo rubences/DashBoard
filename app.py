@@ -1910,10 +1910,15 @@ with tab_standard:
             "con la hoja EXPORT_LONG."
         )
     else:
-        settings = sorted([s for s in df_standard_long["setting_name"].unique().tolist() if s])
-        categories = sorted([c for c in df_standard_long["categoria"].unique().tolist() if c])
-        total_rows = len(df_standard_long)
-        filled_rows = int(df_standard_long["valor"].str.strip().ne("").sum())
+        if "standard_working_df" not in st.session_state:
+            st.session_state.standard_working_df = df_standard_long.copy()
+
+        working_df = st.session_state.standard_working_df.copy()
+
+        settings = sorted([s for s in working_df["setting_name"].unique().tolist() if s])
+        categories = sorted([c for c in working_df["categoria"].unique().tolist() if c])
+        total_rows = len(working_df)
+        filled_rows = int(working_df["valor"].astype(str).str.strip().ne("").sum())
         fill_pct = (filled_rows / total_rows * 100) if total_rows else 0
 
         k1, k2, k3, k4 = st.columns(4)
@@ -1929,32 +1934,14 @@ with tab_standard:
         selected_settings = f2.multiselect("Filtrar settings", settings, default=settings)
         search_param = f3.text_input("Buscar parámetro", placeholder="Ej: Rebound, Pressure, SAG")
 
-        filtered_standard = df_standard_long[
-            df_standard_long["categoria"].isin(selected_categories)
-            & df_standard_long["setting_name"].isin(selected_settings)
+        filtered_standard = working_df[
+            working_df["categoria"].isin(selected_categories)
+            & working_df["setting_name"].isin(selected_settings)
         ].copy()
         if search_param.strip():
             filtered_standard = filtered_standard[
                 filtered_standard["parametro"].str.contains(search_param.strip(), case=False, na=False)
             ]
-
-        comp_by_setting = (
-            filtered_standard.assign(filled=filtered_standard["valor"].str.strip().ne(""))
-            .groupby("setting_name", as_index=False)["filled"]
-            .mean()
-        ) if not filtered_standard.empty else pd.DataFrame(columns=["setting_name", "filled"])
-        if not comp_by_setting.empty:
-            comp_by_setting["completitud_pct"] = comp_by_setting["filled"] * 100
-            fig_comp = px.bar(
-                comp_by_setting,
-                x="setting_name",
-                y="completitud_pct",
-                title="Completitud por setting (filtro actual)",
-                color="completitud_pct",
-                color_continuous_scale="Blues",
-            )
-            fig_comp.update_layout(template="plotly_white", xaxis_title="Setting", yaxis_title="% completitud")
-            st.plotly_chart(fig_comp, width="stretch")
 
         pivot_df = pd.pivot_table(
             filtered_standard,
@@ -1965,7 +1952,78 @@ with tab_standard:
         ).reset_index() if not filtered_standard.empty else pd.DataFrame()
 
         st.subheader("📋 Matriz estándar por categoría y setting")
-        st.dataframe(pivot_df if not pivot_df.empty else filtered_standard, width="stretch", hide_index=True)
+        if not pivot_df.empty:
+            editable_cols = [c for c in pivot_df.columns if c not in ["categoria", "parametro"]]
+            edited_pivot = st.data_editor(
+                pivot_df,
+                width="stretch",
+                hide_index=True,
+                disabled=["categoria", "parametro"],
+                key="standard_matrix_editor",
+            )
+
+            edited_long = edited_pivot.melt(
+                id_vars=["categoria", "parametro"],
+                value_vars=editable_cols,
+                var_name="setting_name",
+                value_name="valor_new",
+            )
+            edited_long["valor_new"] = edited_long["valor_new"].fillna("").astype(str)
+
+            merged_working = working_df.merge(
+                edited_long,
+                on=["setting_name", "categoria", "parametro"],
+                how="left",
+            )
+            merged_working["valor"] = merged_working["valor_new"].where(
+                merged_working["valor_new"].notna(),
+                merged_working["valor"],
+            )
+            merged_working = merged_working.drop(columns=["valor_new"])
+            st.session_state.standard_working_df = merged_working
+            working_df = merged_working
+
+            # Recalcula visuales con la matriz editada.
+            filtered_standard = working_df[
+                working_df["categoria"].isin(selected_categories)
+                & working_df["setting_name"].isin(selected_settings)
+            ].copy()
+            if search_param.strip():
+                filtered_standard = filtered_standard[
+                    filtered_standard["parametro"].str.contains(search_param.strip(), case=False, na=False)
+                ]
+        else:
+            st.dataframe(filtered_standard, width="stretch", hide_index=True)
+
+        comp_by_setting = (
+            filtered_standard.assign(filled=filtered_standard["valor"].astype(str).str.strip().ne(""))
+            .groupby("setting_name", as_index=False)["filled"]
+            .mean()
+        ) if not filtered_standard.empty else pd.DataFrame(columns=["setting_name", "filled"])
+        if not comp_by_setting.empty:
+            comp_by_setting["completitud_pct"] = comp_by_setting["filled"] * 100
+            fig_comp = px.bar(
+                comp_by_setting,
+                x="setting_name",
+                y="completitud_pct",
+                title="Completitud por setting (actualizada con edición en matriz)",
+                color="completitud_pct",
+                color_continuous_scale="Blues",
+            )
+            fig_comp.update_layout(template="plotly_white", xaxis_title="Setting", yaxis_title="% completitud")
+            st.plotly_chart(fig_comp, width="stretch")
+
+        a1, a2 = st.columns(2)
+        if a1.button("💾 Guardar cambios en Mejora_EXPORT_LONG.csv", width="stretch"):
+            try:
+                st.session_state.standard_working_df.to_csv(STANDARD_CONFIG_CSV, index=False)
+                st.success("Cambios guardados en Mejora_EXPORT_LONG.csv")
+            except Exception as exc:
+                st.error(f"No se pudo guardar el CSV: {exc}")
+
+        if a2.button("↺ Resetear matriz (recargar plantilla)", width="stretch"):
+            st.session_state.standard_working_df = df_standard_long.copy()
+            st.rerun()
 
         st.markdown("---")
         st.subheader("🏁 Generador base por circuito")
