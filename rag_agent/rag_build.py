@@ -6,9 +6,21 @@ from typing import Dict, Iterable, List
 
 import numpy as np
 import pandas as pd
-from docx import Document
-from pypdf import PdfReader
-from sentence_transformers import SentenceTransformer
+
+try:
+    from docx import Document
+except ModuleNotFoundError:
+    Document = None
+
+try:
+    from pypdf import PdfReader
+except ModuleNotFoundError:
+    PdfReader = None
+
+try:
+    from sentence_transformers import SentenceTransformer
+except ModuleNotFoundError:
+    SentenceTransformer = None
 
 try:
     import chromadb
@@ -47,11 +59,15 @@ def chunk_text(text: str, chunk_size: int = 900, overlap: int = 150) -> List[str
 
 
 def read_docx(path: Path) -> str:
+    if Document is None:
+        return ""
     doc = Document(path)
     return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
 
 
 def read_pdf(path: Path) -> str:
+    if PdfReader is None:
+        return ""
     reader = PdfReader(str(path))
     pages = []
     for page in reader.pages:
@@ -172,7 +188,7 @@ def build_index(collection_name: str, chunk_size: int, overlap: int, rebuild: bo
     if not docs:
         raise RuntimeError("No supported documents found to index.")
 
-    embedder = SentenceTransformer(EMBED_MODEL)
+    embedder = SentenceTransformer(EMBED_MODEL) if SentenceTransformer is not None else None
     texts = [d["text"] for d in docs]
     ids = [d["id"] for d in docs]
     metas = [
@@ -185,11 +201,14 @@ def build_index(collection_name: str, chunk_size: int, overlap: int, rebuild: bo
         for d in docs
     ]
 
-    embeddings = embedder.encode(texts, normalize_embeddings=True, batch_size=64)
+    embeddings = None
+    if embedder is not None:
+        embeddings = embedder.encode(texts, normalize_embeddings=True, batch_size=64)
 
     # Always persist a local fallback index to avoid hard dependency on chromadb.
     LOCAL_INDEX_DIR.mkdir(parents=True, exist_ok=True)
-    np.save(LOCAL_INDEX_DIR / f"{collection_name}_embeddings.npy", embeddings)
+    if embeddings is not None:
+        np.save(LOCAL_INDEX_DIR / f"{collection_name}_embeddings.npy", embeddings)
     with (LOCAL_INDEX_DIR / f"{collection_name}_records.jsonl").open("w", encoding="utf-8") as f:
         for doc_id, text, meta in zip(ids, texts, metas):
             f.write(
@@ -205,8 +224,9 @@ def build_index(collection_name: str, chunk_size: int, overlap: int, rebuild: bo
             )
 
     used_backends = ["local_index"]
+    retrieval_mode = "embedding" if embeddings is not None else "lexical"
 
-    if chromadb is not None:
+    if chromadb is not None and embeddings is not None:
         client = chromadb.PersistentClient(path=str(CHROMA_DIR))
         if rebuild:
             try:
@@ -220,6 +240,7 @@ def build_index(collection_name: str, chunk_size: int, overlap: int, rebuild: bo
 
     print(f"Indexed {len(docs)} chunks in '{collection_name}'.")
     print(f"Backends: {', '.join(used_backends)}")
+    print(f"Retrieval mode: {retrieval_mode}")
     if chromadb is not None:
         print(f"Chroma path: {CHROMA_DIR}")
     print(f"Local index path: {LOCAL_INDEX_DIR}")
