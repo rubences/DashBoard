@@ -576,12 +576,13 @@ with st.sidebar:
 # PESTAÑAS
 # ============================================================
 
-tab_goiania, tab_compare, tab_aspar, tab_standard, tab_rag, tab_sector = st.tabs([
+tab_goiania, tab_compare, tab_aspar, tab_standard, tab_rag, tab_diagrams, tab_sector = st.tabs([
     "🏁 Goiânia 2026",
     "🚨 ESTÁNDAR vs ASPAR",
     "🏟️ Aspar — Spec Domingo",
     "📘 Estándar Config Moto",
     "🤖 Asistente RAG",
+    "📊 Diagramas Pro",
     "📡 Avances 2016-2026",
 ])
 
@@ -2329,3 +2330,114 @@ Estas plataformas instrumentan sensores de tensión en múltiples puntos del cha
 El avance en estos simuladores resulta ser la piedra angular para desarrollar estrategias de prevención de accidentes. Bases de datos exhaustivas en Europa, como el proyecto MAIDS (Motorcycle Accidents In Depth Study), que documentó a fondo más de 920 accidentes utilizando cerca de 2000 variables por caso, han permitido identificar los escenarios críticos de siniestralidad. Al integrar esta analítica en los simuladores inmersivos, los investigadores pueden ensayar estrategias de evasión de colisión apoyadas en sistemas V2V, representando la última frontera tecnológica para reducir la tasa de siniestralidad de los motoristas frente a turismos y redefiniendo el diseño de los algoritmos de control predictivo del futuro.
             """
         )
+
+with tab_diagrams:
+    st.title("📊 Diagramas Pro de Dinámica y Rendimiento")
+    st.markdown(
+        "Panel visual de ingeniería para inspección rápida: GG diagram, mapa presión-temperatura, "
+        "mapas electrónicos y riesgo térmico por sesión."
+    )
+
+    dg1, dg2, dg3 = st.columns(3)
+    sesion_diagrama = dg1.selectbox("Sesión de análisis", sesiones_disponibles, index=sesiones_disponibles.index(sesion))
+    color_by = dg2.selectbox("Color por", ["run", "tipo_vuelta", "neumatico_rear"], index=0)
+    show_density = dg3.checkbox("Mostrar contorno GG", value=True)
+
+    dgm = df_telemetry[df_telemetry["sesion"] == sesion_diagrama].copy()
+    if dgm.empty:
+        st.info("No hay datos para la sesión seleccionada.")
+    else:
+        # Proxy GG sin acelerómetros directos: combina cambio de ritmo y reparto sectorial.
+        dgm = dgm.sort_values(["run", "vuelta"]).reset_index(drop=True)
+        dgm["lap_delta_s"] = dgm.groupby("run")["lap_time_s"].diff().fillna(0)
+        dgm["g_long_proxy"] = (-dgm["lap_delta_s"]).clip(-1.5, 1.5)
+        sec_sum = (dgm["sector_1_s"] + dgm["sector_2_s"] + dgm["sector_3_s"]).replace(0, pd.NA)
+        dgm["g_lat_proxy"] = ((dgm["sector_1_s"] - dgm["sector_3_s"]) / sec_sum * 8).fillna(0).clip(-1.8, 1.8)
+
+        st.subheader("🌀 GG Diagram (proxy)")
+        fig_gg = px.scatter(
+            dgm,
+            x="g_lat_proxy",
+            y="g_long_proxy",
+            color=color_by if color_by in dgm.columns else "run",
+            hover_data=["vuelta", "run", "lap_time_s", "velocidad_punta_kmh"],
+            title=f"GG proxy — {sesion_diagrama}",
+            opacity=0.75,
+        )
+        if show_density:
+            fig_gg.add_trace(
+                go.Histogram2dContour(
+                    x=dgm["g_lat_proxy"],
+                    y=dgm["g_long_proxy"],
+                    colorscale="Blues",
+                    showscale=False,
+                    contours={"showlabels": False},
+                    opacity=0.35,
+                    name="Densidad",
+                )
+            )
+        fig_gg.add_hline(y=0, line_dash="dash", line_color="#64748b")
+        fig_gg.add_vline(x=0, line_dash="dash", line_color="#64748b")
+        fig_gg.update_layout(template="plotly_white", xaxis_title="g lateral (proxy)", yaxis_title="g longitudinal (proxy)")
+        st.plotly_chart(fig_gg, width="stretch")
+
+        st.markdown("---")
+        c1, c2 = st.columns(2)
+
+        with c1:
+            st.subheader("🌡️ Mapa presión-temperatura")
+            fig_pt = px.scatter(
+                dgm,
+                x="presion_rear_hot_target_bar",
+                y="temp_neumatico_right_c",
+                color="run",
+                size="velocidad_punta_kmh",
+                hover_data=["vuelta", "lap_time_s", "neumatico_rear"],
+                title="Rear pressure vs temperatura derecha",
+            )
+            fig_pt.add_hline(y=95, line_dash="dot", annotation_text="Umbral térmico")
+            fig_pt.add_vline(x=1.65, line_dash="dot", annotation_text="Mínimo reglamentario")
+            fig_pt.update_layout(template="plotly_white", xaxis_title="Presión trasera hot (bar)", yaxis_title="Temp derecha (°C)")
+            st.plotly_chart(fig_pt, width="stretch")
+
+        with c2:
+            st.subheader("🎛️ Perfil electrónico por run")
+            maps_df = (
+                dgm.groupby("run", as_index=False)
+                .agg(
+                    tc=("traction_control_lvl", "mean"),
+                    ebc=("engine_brake_lvl", "mean"),
+                    awc=("anti_wheelie_lvl", "mean"),
+                    lap=("lap_time_s", "mean"),
+                )
+            )
+            fig_maps = px.line_polar(
+                maps_df.melt(id_vars=["run", "lap"], value_vars=["tc", "ebc", "awc"], var_name="mapa", value_name="nivel"),
+                r="nivel",
+                theta="mapa",
+                color="run",
+                line_close=True,
+                title="Radar de mapas electrónicos",
+                hover_data=["lap"],
+            )
+            fig_maps.update_layout(template="plotly_white")
+            st.plotly_chart(fig_maps, width="stretch")
+
+        st.markdown("---")
+        st.subheader("⚠️ Heatmap de riesgo por vuelta")
+        risk_df = dgm[["vuelta", "run", "temp_neumatico_right_c", "presion_rear_hot_target_bar", "lap_time_s"]].copy()
+        risk_df["risk_score"] = (
+            (risk_df["temp_neumatico_right_c"] - 90).clip(lower=0) * 0.35
+            + (1.65 - risk_df["presion_rear_hot_target_bar"]).clip(lower=0) * 100 * 0.45
+            + (risk_df["lap_time_s"] - risk_df["lap_time_s"].median()).clip(lower=0) * 0.20
+        )
+        heat = risk_df.pivot_table(index="run", columns="vuelta", values="risk_score", aggfunc="mean")
+        if not heat.empty:
+            fig_heat = px.imshow(
+                heat,
+                color_continuous_scale="YlOrRd",
+                aspect="auto",
+                title="Matriz de riesgo operativo (0=mejor)",
+            )
+            fig_heat.update_layout(template="plotly_white", xaxis_title="Vuelta", yaxis_title="Run")
+            st.plotly_chart(fig_heat, width="stretch")
