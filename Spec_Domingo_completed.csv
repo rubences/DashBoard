@@ -1,0 +1,35 @@
+section,parameter,SETTING 1,SETTING 2,SETTING 3,SETTING 4,SETTING 5,SETTING 6
+BIKE,BIKE,Moto3 Prototype,Moto3 Prototype,Moto3 Prototype,Moto3 Prototype,Moto3 Prototype,Moto3 Prototype
+TYRES,F Type,SC2,SC2,SC1,SC2,SC2,SC2
+TYRES,R Type,SC2,SC1,SC1,SC1,SC2,SC1
+TYRES,F Pressure,1.60 bar (cold),1.60 bar (cold),1.65 bar (cold),1.60 bar (cold),1.60 bar (cold),1.60 bar (cold)
+TYRES,R Pressure,1.35 bar (cold),1.30 bar (cold),1.35 bar (cold),1.35 bar (cold),1.35 bar (cold),1.33 bar (cold)
+TYRES,Condition,FP1 Base / Shakedown,Practice Hot,Q2 Time Attack,Race Setup,Stability (Long WB),Traction (High AS)
+FORK,Fork height (clamp),+3 mm,+4 mm,+5 mm,+4 mm,+3 mm,+4 mm
+FORK,Spring,9.5 N/mm,9.5 N/mm,10.0 N/mm,9.5 N/mm,9.5 N/mm,9.5 N/mm
+FORK,Oil Type,5W,5W,5W,5W,5W,5W
+FORK,Oil Cam,Std,Std,Std,Std,Std,Std
+FORK,Preload,6 turns,6 turns,5 turns,6 turns,6 turns,6 turns
+FORK,Compression,10 clicks,11 clicks,12 clicks,11 clicks,10 clicks,12 clicks
+FORK,Rebound,12 clicks,13 clicks,14 clicks,13 clicks,12 clicks,14 clicks
+FORK,Free SAG,15 mm,15 mm,14 mm,15 mm,15 mm,15 mm
+FORK,SAG,35 mm,35 mm,34 mm,35 mm,35 mm,35 mm
+SHOCK,Total Length,305 mm,305 mm,304 mm,305 mm,306 mm,305 mm
+SHOCK,Spring,85 N/mm,85 N/mm,90 N/mm,85 N/mm,85 N/mm,90 N/mm
+SHOCK,Preload,8 turns,9 turns,10 turns,9 turns,8 turns,10 turns
+SHOCK,Compression,12 clicks,13 clicks,14 clicks,13 clicks,12 clicks,14 clicks
+SHOCK,Rebound,14 clicks,15 clicks,16 clicks,15 clicks,14 clicks,16 clicks
+SHOCK,Free SAG,10 mm,10 mm,9 mm,10 mm,10 mm,9 mm
+SHOCK,SAG,30 mm,30 mm,29 mm,30 mm,31 mm,29 mm
+GEOMETRY,Front Height,Base,Front -1 mm,Front -2 mm,Front -1 mm,Front 0 mm,Front -1 mm
+GEOMETRY,Rear Height,Base,Rear +1 mm,Rear +2 mm,Rear +1 mm,Rear 0 mm,Rear +2 mm
+GEOMETRY,Swingarm Lenght,Base,Base,Base,Base,Base+12 mm,Base+6 mm
+ENGINE,Final Ratio,Long,Long,Long,Long,Very Long,Long
+ENGINE,Links,112 links,112 links,112 links,112 links,114 links,113 links
+ENGINE,QS,ON,ON,ON,ON,ON,ON
+ENGINE,Exhaust,Std,Std,Std,Std,Std,Std
+EXT CONDITION,Condition,Dry,Dry,Dry,Dry,Dry,Dry
+EXT CONDITION,Air Temp,26 °C,28 °C,29 °C,30 °C,26 °C,30 °C
+EXT CONDITION,Asph Temp,35 °C,49 °C,47 °C,46 °C,35 °C,50 °C
+EXT CONDITION,Wind,6 km/h,6 km/h,6 km/h,6 km/h,6 km/h,6 km/h
+EXT CONDITION,Humidity,57%,54%,52%,53%,57%,53%

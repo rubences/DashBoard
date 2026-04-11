@@ -437,590 +437,876 @@ with st.sidebar:
     st.markdown("---")
     st.caption("Datos: telemetría, tareas y setup CSV")
 
-# ============================================================
-# FILTRADO DE DATOS
-# ============================================================
-
-dff = df_telemetry[df_telemetry["sesion"] == sesion].copy()
-tff = df_tasks[(df_tasks["sesion"] == sesion) & (df_tasks["rol"] == rol)].copy()
-session_df = session_summary(df_telemetry)
-
-# KPIs base reutilizados por alertas, comparador y tarjetas.
-best_lap = dff["lap_time_s"].min() if not dff.empty else None
-vmax = dff["velocidad_punta_kmh"].max() if not dff.empty else None
-temp_right = dff["temp_neumatico_right_c"].mean() if not dff.empty else None
-anti_squat = dff["anti_squat_pct"].mean() if not dff.empty else None
-p_rear = dff["presion_rear_hot_target_bar"].mean() if not dff.empty else None
 
 # ============================================================
-# ENCABEZADO
+# PESTAÑAS
 # ============================================================
 
-st.title("Dashboard Moto3 — Goiânia 2026")
-st.markdown(f"**Sesión:** {sesion} &nbsp;|&nbsp; **Rol:** {rol}")
-st.markdown("---")
+tab_goiania, tab_aspar = st.tabs(["🏁 Goiânia 2026", "🏟️ Aspar — Spec Domingo"])
 
-# ============================================================
-# ALERTAS AUTOMÁTICAS
-# ============================================================
+with tab_goiania:
+    # ============================================================
+    # FILTRADO DE DATOS
+    # ============================================================
 
-st.subheader("🚨 Alertas automáticas")
-alerts = []
-if p_rear is not None and not pd.isna(p_rear) and p_rear < 1.65:
-    alerts.append({"tipo": "Crítica", "detalle": "Presión trasera media por debajo de 1.65 bar", "valor": round(p_rear, 3)})
-if temp_right is not None and not pd.isna(temp_right) and temp_right > 95:
-    alerts.append({"tipo": "Alerta", "detalle": "Temperatura flanco derecho por encima de 95 °C", "valor": round(temp_right, 2)})
-if anti_squat is not None and not pd.isna(anti_squat) and not (108 <= anti_squat <= 112):
-    alerts.append({"tipo": "Alerta", "detalle": "Anti-squat fuera de ventana 108-112%", "valor": round(anti_squat, 2)})
+    dff = df_telemetry[df_telemetry["sesion"] == sesion].copy()
+    tff = df_tasks[(df_tasks["sesion"] == sesion) & (df_tasks["rol"] == rol)].copy()
+    session_df = session_summary(df_telemetry)
 
-if not dff.empty and dff["lap_time_s"].notna().sum() > 1:
-    lap_std = float(dff["lap_time_s"].std())
-    if lap_std > 0.6:
-        alerts.append({"tipo": "Info", "detalle": "Variabilidad de vuelta alta (consistencia mejorable)", "valor": round(lap_std, 3)})
+    # KPIs base reutilizados por alertas, comparador y tarjetas.
+    best_lap = dff["lap_time_s"].min() if not dff.empty else None
+    vmax = dff["velocidad_punta_kmh"].max() if not dff.empty else None
+    temp_right = dff["temp_neumatico_right_c"].mean() if not dff.empty else None
+    anti_squat = dff["anti_squat_pct"].mean() if not dff.empty else None
+    p_rear = dff["presion_rear_hot_target_bar"].mean() if not dff.empty else None
 
-if not alerts:
-    st.success("Sin alertas críticas para la sesión seleccionada.")
-else:
-    critical_count = len([a for a in alerts if a["tipo"] == "Crítica"])
-    if critical_count > 0:
-        st.error(f"Se detectaron {critical_count} alertas críticas.")
-    st.dataframe(pd.DataFrame(alerts), width="stretch", hide_index=True)
+    # ============================================================
+    # ENCABEZADO
+    # ============================================================
 
-st.markdown("---")
+    st.title("Dashboard Moto3 — Goiânia 2026")
+    st.markdown(f"**Sesión:** {sesion} &nbsp;|&nbsp; **Rol:** {rol}")
+    st.markdown("---")
 
-# ============================================================
-# COMPARADOR DE SESIONES
-# ============================================================
+    # ============================================================
+    # ALERTAS AUTOMÁTICAS
+    # ============================================================
 
-st.subheader("📈 Comparador de sesiones")
-if compare_session == "Ninguna":
-    st.caption("Selecciona una sesión de referencia en la barra lateral para activar la comparación.")
-else:
-    current_row = session_df[session_df["sesion"] == sesion]
-    compare_row = session_df[session_df["sesion"] == compare_session]
+    st.subheader("🚨 Alertas automáticas")
+    alerts = []
+    if p_rear is not None and not pd.isna(p_rear) and p_rear < 1.65:
+        alerts.append({"tipo": "Crítica", "detalle": "Presión trasera media por debajo de 1.65 bar", "valor": round(p_rear, 3)})
+    if temp_right is not None and not pd.isna(temp_right) and temp_right > 95:
+        alerts.append({"tipo": "Alerta", "detalle": "Temperatura flanco derecho por encima de 95 °C", "valor": round(temp_right, 2)})
+    if anti_squat is not None and not pd.isna(anti_squat) and not (108 <= anti_squat <= 112):
+        alerts.append({"tipo": "Alerta", "detalle": "Anti-squat fuera de ventana 108-112%", "valor": round(anti_squat, 2)})
 
-    if not current_row.empty and not compare_row.empty:
-        current = current_row.iloc[0]
-        reference = compare_row.iloc[0]
+    if not dff.empty and dff["lap_time_s"].notna().sum() > 1:
+        lap_std = float(dff["lap_time_s"].std())
+        if lap_std > 0.6:
+            alerts.append({"tipo": "Info", "detalle": "Variabilidad de vuelta alta (consistencia mejorable)", "valor": round(lap_std, 3)})
 
-        cmp1, cmp2, cmp3, cmp4 = st.columns(4)
-        cmp1.metric("Δ Mejor vuelta (s)", fmt_delta(current["best_lap"], reference["best_lap"], 3))
-        cmp2.metric("Δ Velocidad punta (km/h)", fmt_delta(current["vmax"], reference["vmax"], 1))
-        cmp3.metric("Δ Temp. der. (°C)", fmt_delta(current["temp_right"], reference["temp_right"], 2))
-        cmp4.metric("Δ Presión trasera (bar)", fmt_delta(current["p_rear"], reference["p_rear"], 3))
+    if not alerts:
+        st.success("Sin alertas críticas para la sesión seleccionada.")
+    else:
+        critical_count = len([a for a in alerts if a["tipo"] == "Crítica"])
+        if critical_count > 0:
+            st.error(f"Se detectaron {critical_count} alertas críticas.")
+        st.dataframe(pd.DataFrame(alerts), width="stretch", hide_index=True)
 
-        cmp_df = pd.DataFrame(
+    st.markdown("---")
+
+    # ============================================================
+    # COMPARADOR DE SESIONES
+    # ============================================================
+
+    st.subheader("📈 Comparador de sesiones")
+    if compare_session == "Ninguna":
+        st.caption("Selecciona una sesión de referencia en la barra lateral para activar la comparación.")
+    else:
+        current_row = session_df[session_df["sesion"] == sesion]
+        compare_row = session_df[session_df["sesion"] == compare_session]
+
+        if not current_row.empty and not compare_row.empty:
+            current = current_row.iloc[0]
+            reference = compare_row.iloc[0]
+
+            cmp1, cmp2, cmp3, cmp4 = st.columns(4)
+            cmp1.metric("Δ Mejor vuelta (s)", fmt_delta(current["best_lap"], reference["best_lap"], 3))
+            cmp2.metric("Δ Velocidad punta (km/h)", fmt_delta(current["vmax"], reference["vmax"], 1))
+            cmp3.metric("Δ Temp. der. (°C)", fmt_delta(current["temp_right"], reference["temp_right"], 2))
+            cmp4.metric("Δ Presión trasera (bar)", fmt_delta(current["p_rear"], reference["p_rear"], 3))
+
+            cmp_df = pd.DataFrame(
+                [
+                    {"metric": "Best lap (s)", sesion: current["best_lap"], compare_session: reference["best_lap"]},
+                    {"metric": "Avg lap (s)", sesion: current["avg_lap"], compare_session: reference["avg_lap"]},
+                    {"metric": "Vmax (km/h)", sesion: current["vmax"], compare_session: reference["vmax"]},
+                    {"metric": "Temp right (°C)", sesion: current["temp_right"], compare_session: reference["temp_right"]},
+                    {"metric": "Anti-squat (%)", sesion: current["anti_squat"], compare_session: reference["anti_squat"]},
+                    {"metric": "Rear pressure (bar)", sesion: current["p_rear"], compare_session: reference["p_rear"]},
+                ]
+            )
+            cmp_plot = cmp_df.melt(id_vars="metric", var_name="sesion", value_name="valor")
+            fig_cmp = px.bar(cmp_plot, x="metric", y="valor", color="sesion", barmode="group", title=f"{sesion} vs {compare_session}")
+            fig_cmp.update_layout(template="plotly_white", xaxis_title="Métrica", yaxis_title="Valor")
+            st.plotly_chart(fig_cmp, width="stretch")
+        else:
+            st.info("No hay datos suficientes para comparar esas sesiones.")
+
+    st.markdown("---")
+
+    # ============================================================
+    # KPI CARDS
+    # ============================================================
+
+    kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+
+    kpi1.metric("⏱️ Mejor vuelta", fmt_num(best_lap, 2, " s"))
+    kpi2.metric(
+        "🚀 Velocidad punta",
+        fmt_num(vmax, 0, " km/h"),
+        help=f"Recta principal: {get_setup_value('main_straight_m', '994')} m"
+    )
+    kpi3.metric(
+        "🌡️ Temp. flanco derecho",
+        fmt_num(temp_right, 1, " °C"),
+        delta="⚠️ Alta" if (temp_right is not None and temp_right > 95) else None,
+        delta_color="inverse"
+    )
+    kpi4.metric(
+        "⚙️ Anti-squat",
+        fmt_num(anti_squat, 0, " %"),
+        delta="En rango" if (anti_squat is not None and 108 <= anti_squat <= 112) else "Fuera de rango",
+        delta_color="normal" if (anti_squat is not None and 108 <= anti_squat <= 112) else "inverse"
+    )
+    kpi5.metric(
+        "💨 Presión trasera hot",
+        fmt_num(p_rear, 2, " bar"),
+        delta="⚠️ Bajo mínimo" if (p_rear is not None and p_rear < 1.65) else None,
+        delta_color="inverse",
+        help="Mínimo legal Race: 1.65 bar"
+    )
+
+    st.markdown("---")
+
+    # ============================================================
+    # GRÁFICOS — FILA 1: Tiempos + Sectores
+    # ============================================================
+
+    col_left, col_right = st.columns(2)
+
+    with col_left:
+        if not dff.empty:
+            fig_lap = px.line(
+                dff, x="vuelta", y="lap_time_s", markers=True, color="run",
+                title=f"Evolución del tiempo por vuelta — {sesion}"
+            )
+            fig_lap.update_layout(template="plotly_white", yaxis_title="Tiempo (s)", xaxis_title="Vuelta")
+        else:
+            fig_lap = go.Figure()
+            fig_lap.update_layout(title="Sin datos")
+        st.plotly_chart(fig_lap, width='stretch')
+
+    with col_right:
+        if not dff.empty:
+            sectors_df = dff.melt(
+                id_vars=["vuelta", "run"],
+                value_vars=["sector_1_s", "sector_2_s", "sector_3_s"],
+                var_name="sector", value_name="tiempo"
+            )
+            fig_sector = px.bar(
+                sectors_df, x="vuelta", y="tiempo", color="sector", barmode="group",
+                title=f"Sectores por vuelta — {sesion}"
+            )
+            fig_sector.update_layout(template="plotly_white", yaxis_title="Tiempo (s)", xaxis_title="Vuelta")
+        else:
+            fig_sector = go.Figure()
+            fig_sector.update_layout(title="Sin datos")
+        st.plotly_chart(fig_sector, width='stretch')
+
+    # ============================================================
+    # GRÁFICOS — FILA 2: Térmico + Presiones
+    # ============================================================
+
+    col_left2, col_right2 = st.columns(2)
+
+    with col_left2:
+        fig_thermal = go.Figure()
+        if not dff.empty:
+            fig_thermal.add_trace(go.Scatter(
+                x=dff["vuelta"], y=dff["temp_neumatico_right_c"], mode="lines+markers", name="Flanco derecho"
+            ))
+            fig_thermal.add_trace(go.Scatter(
+                x=dff["vuelta"], y=dff["temp_neumatico_center_c"], mode="lines+markers", name="Centro"
+            ))
+            fig_thermal.add_trace(go.Scatter(
+                x=dff["vuelta"], y=dff["temp_neumatico_left_c"], mode="lines+markers", name="Flanco izquierdo"
+            ))
+        fig_thermal.update_layout(
+            title=f"Gradiente térmico del neumático — {sesion}",
+            template="plotly_white", xaxis_title="Vuelta", yaxis_title="Temperatura (°C)"
+        )
+        st.plotly_chart(fig_thermal, width='stretch')
+
+    with col_right2:
+        fig_pressure = go.Figure()
+        if not dff.empty:
+            fig_pressure.add_trace(go.Bar(x=dff["vuelta"], y=dff["presion_front_hot_target_bar"], name="Delantera hot"))
+            fig_pressure.add_trace(go.Bar(x=dff["vuelta"], y=dff["presion_rear_hot_target_bar"], name="Trasera hot"))
+            fig_pressure.add_hline(y=1.65, line_dash="dash", annotation_text="Mínimo trasero")
+        fig_pressure.update_layout(
+            title=f"Presiones dinámicas objetivo — {sesion}",
+            template="plotly_white", xaxis_title="Vuelta", yaxis_title="Presión (bar)", barmode="group"
+        )
+        st.plotly_chart(fig_pressure, width='stretch')
+
+    # ============================================================
+    # GRÁFICOS — FILA 3: Mapas electrónicos + Compuestos
+    # ============================================================
+    if view_mode == "Completo":
+        col_left3, col_right3 = st.columns(2)
+
+        with col_left3:
+            fig_maps = go.Figure()
+            if not dff.empty:
+                fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["traction_control_lvl"], mode="lines+markers", name="TC"))
+                fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["engine_brake_lvl"], mode="lines+markers", name="EBC"))
+                fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["anti_wheelie_lvl"], mode="lines+markers", name="AWC"))
+            fig_maps.update_layout(
+                title=f"Mapas electrónicos por vuelta — {sesion}",
+                template="plotly_white", xaxis_title="Vuelta", yaxis_title="Nivel"
+            )
+            st.plotly_chart(fig_maps, width='stretch')
+
+        with col_right3:
+            if not dff.empty:
+                compound_df = (
+                    dff.groupby(["run", "neumatico_front", "neumatico_rear"], as_index=False)
+                    .size()
+                    .rename(columns={"size": "conteo"})
+                )
+                fig_compound = px.bar(
+                    compound_df, x="run", y="conteo", color="neumatico_rear",
+                    pattern_shape="neumatico_front",
+                    title=f"Compuestos por run — {sesion}",
+                    hover_data=["neumatico_front", "neumatico_rear"]
+                )
+                fig_compound.update_layout(template="plotly_white", xaxis_title="Run", yaxis_title="Registros")
+            else:
+                fig_compound = go.Figure()
+                fig_compound.update_layout(title="Sin datos")
+            st.plotly_chart(fig_compound, width='stretch')
+    else:
+        st.caption("Modo Ejecutivo activo: se ocultan gráficos secundarios (mapas y compuestos) para una lectura más rápida.")
+
+    st.markdown("---")
+
+    # ============================================================
+    # ANÁLISIS AVANZADO
+    # ============================================================
+    if view_mode == "Completo":
+        st.subheader("🔬 Análisis avanzado")
+        adv1, adv2 = st.columns(2)
+
+        with adv1:
+            if not dff.empty:
+                fig_scatter = px.scatter(
+                    dff,
+                    x="temp_neumatico_right_c",
+                    y="lap_time_s",
+                    color="run",
+                    size="velocidad_punta_kmh",
+                    hover_data=["vuelta", "sector_1_s", "sector_2_s", "sector_3_s"],
+                    title="Relación temperatura derecha vs tiempo de vuelta",
+                )
+                fig_scatter.update_layout(template="plotly_white", xaxis_title="Temp flanco derecho (°C)", yaxis_title="Lap time (s)")
+            else:
+                fig_scatter = go.Figure()
+                fig_scatter.update_layout(title="Sin datos")
+            st.plotly_chart(fig_scatter, width="stretch")
+
+        with adv2:
+            corr_cols = [
+                "lap_time_s",
+                "velocidad_punta_kmh",
+                "temp_neumatico_right_c",
+                "presion_rear_hot_target_bar",
+                "anti_squat_pct",
+                "track_temp_c",
+            ]
+            available_corr_cols = [col for col in corr_cols if col in dff.columns]
+            corr_df = dff[available_corr_cols].dropna() if not dff.empty and available_corr_cols else pd.DataFrame()
+            if not corr_df.empty and len(corr_df) > 1:
+                fig_corr = px.imshow(
+                    corr_df.corr(numeric_only=True),
+                    text_auto=True,
+                    color_continuous_scale="RdBu",
+                    origin="lower",
+                    title="Matriz de correlación (sesión)",
+                    zmin=-1,
+                    zmax=1,
+                )
+                fig_corr.update_layout(template="plotly_white")
+            else:
+                fig_corr = go.Figure()
+                fig_corr.update_layout(title="Sin datos suficientes para correlación")
+            st.plotly_chart(fig_corr, width="stretch")
+
+        hist_df = dff[["lap_time_s", "run"]].dropna() if not dff.empty else pd.DataFrame()
+        if not hist_df.empty:
+            fig_hist = px.histogram(
+                hist_df,
+                x="lap_time_s",
+                color="run",
+                barmode="overlay",
+                nbins=12,
+                title="Distribución de tiempos de vuelta por run",
+                opacity=0.7,
+            )
+            fig_hist.update_layout(template="plotly_white", xaxis_title="Lap time (s)", yaxis_title="Frecuencia")
+            st.plotly_chart(fig_hist, width="stretch")
+
+    st.markdown("---")
+
+    # ============================================================
+    # CIRCUITO POR LOCALIZACIÓN
+    # ============================================================
+
+    st.subheader("🗺️ Mapa del circuito por localización")
+    circuit_col, context_col = st.columns([2, 1])
+
+    with circuit_col:
+        fig_circuit = build_circuit_figure(dff, circuit_color_mode, selected_lap)
+        st.plotly_chart(fig_circuit, width='stretch')
+
+    with context_col:
+        st.markdown("**Referencia geográfica**")
+        st.write("• Trazado aproximado del Autódromo de Goiânia")
+        st.write("• Curvas etiquetadas por punto")
+        st.write(f"• Color activo: {circuit_color_mode}")
+        if selected_lap is not None:
+            st.write(f"• Vuelta resaltada: {selected_lap}")
+        st.caption("Visual de apoyo para análisis táctico por sesión.")
+
+    st.markdown("---")
+
+    # ============================================================
+    # KANBAN OPERATIVO
+    # ============================================================
+
+    st.subheader("📋 Kanban operativo por rol")
+
+    todo_tasks = tff[tff["estado"] == "Todo"]["tarea"].tolist()
+    progress_tasks = tff[tff["estado"] == "In Progress"]["tarea"].tolist()
+    done_tasks = tff[tff["estado"] == "Done"]["tarea"].tolist()
+
+    k1, k2, k3 = st.columns(3)
+
+
+    def render_kanban_col(container, title, tasks, bg_color):
+        items_html = "".join(
+            f"<div style='background:white;padding:8px 10px;border-radius:8px;"
+            f"margin-top:8px;font-size:13px;box-shadow:0 1px 4px rgba(0,0,0,0.07)'>{t}</div>"
+            for t in tasks
+        ) if tasks else "<p style='color:#6b7280;font-size:13px;margin-top:8px'>Sin tareas</p>"
+        with container:
+            st.markdown(
+                f"<div style='background:{bg_color};padding:14px;border-radius:12px;min-height:200px'>"
+                f"<strong style='font-size:15px'>{title}</strong>{items_html}</div>",
+                unsafe_allow_html=True
+            )
+
+
+    render_kanban_col(k1, "🔵 Todo", todo_tasks, "#eef2ff")
+    render_kanban_col(k2, "🟠 In Progress", progress_tasks, "#fff7ed")
+    render_kanban_col(k3, "🟢 Done", done_tasks, "#ecfdf5")
+
+    st.markdown("### ✅ Lista de tareas operativas")
+    if tff.empty:
+        st.info("No hay tareas para este rol en la sesión seleccionada.")
+    else:
+        order_map = {"Alta": 0, "Media": 1, "Baja": 2}
+        tasks_table = tff[["tarea", "estado", "prioridad"]].copy()
+        tasks_table["_orden"] = tasks_table["prioridad"].map(order_map).fillna(99)
+        tasks_table = tasks_table.sort_values(["_orden", "estado", "tarea"]).drop(columns=["_orden"])
+
+        done_count = (tasks_table["estado"] == "Done").sum()
+        total_count = len(tasks_table)
+        progress = done_count / total_count if total_count else 0
+
+        p1, p2 = st.columns([1, 3])
+        p1.metric("Completadas", f"{done_count}/{total_count}")
+        p2.progress(progress, text=f"Progreso operativo: {progress * 100:.0f}%")
+
+        st.markdown("**Filtros rápidos de tareas**")
+        f1, f2, f3 = st.columns([1, 1, 2])
+        estado_opts = sorted(tasks_table["estado"].dropna().unique().tolist())
+        prioridad_opts = sorted(tasks_table["prioridad"].dropna().unique().tolist())
+
+        if "task_estados_sel" not in st.session_state:
+            st.session_state.task_estados_sel = estado_opts
+        if "task_prioridades_sel" not in st.session_state:
+            st.session_state.task_prioridades_sel = prioridad_opts
+
+        st.session_state.task_estados_sel = [e for e in st.session_state.task_estados_sel if e in estado_opts]
+        st.session_state.task_prioridades_sel = [p for p in st.session_state.task_prioridades_sel if p in prioridad_opts]
+        if not st.session_state.task_estados_sel:
+            st.session_state.task_estados_sel = estado_opts
+        if not st.session_state.task_prioridades_sel:
+            st.session_state.task_prioridades_sel = prioridad_opts
+
+        estados_sel = f1.multiselect(
+            "Estado",
+            options=estado_opts,
+            key="task_estados_sel",
+        )
+        prioridades_sel = f2.multiselect(
+            "Prioridad",
+            options=prioridad_opts,
+            key="task_prioridades_sel",
+        )
+        search_text = f3.text_input("Buscar tarea", placeholder="Ej: presión, limitador, tracción", key="task_search")
+
+        tasks_filtered = tasks_table[
+            tasks_table["estado"].isin(estados_sel) & tasks_table["prioridad"].isin(prioridades_sel)
+        ].copy()
+        if search_text.strip():
+            tasks_filtered = tasks_filtered[
+                tasks_filtered["tarea"].str.contains(search_text.strip(), case=False, na=False)
+            ]
+
+        total_filtered = len(tasks_filtered)
+        task_total_pages = max(1, math.ceil(total_filtered / task_page_size))
+        st.session_state.task_page = min(max(int(st.session_state.task_page), 1), task_total_pages)
+        pcol1, pcol2 = st.columns([1, 4])
+        current_task_page = int(
+            pcol1.number_input(
+                "Página tareas",
+                min_value=1,
+                max_value=task_total_pages,
+                step=1,
+                key="task_page",
+            )
+        )
+        tasks_visible = paginate_df(tasks_filtered, current_task_page, task_page_size)
+        start_row = (current_task_page - 1) * task_page_size + (1 if total_filtered > 0 else 0)
+        end_row = min(current_task_page * task_page_size, total_filtered)
+        pcol2.caption(f"Mostrando {start_row}-{end_row} de {total_filtered} tareas filtradas")
+
+        st.dataframe(tasks_visible, width="stretch", hide_index=True)
+
+        csv_data = tasks_filtered.to_csv(index=False).encode("utf-8")
+
+        resumen_operativo = pd.DataFrame(
             [
-                {"metric": "Best lap (s)", sesion: current["best_lap"], compare_session: reference["best_lap"]},
-                {"metric": "Avg lap (s)", sesion: current["avg_lap"], compare_session: reference["avg_lap"]},
-                {"metric": "Vmax (km/h)", sesion: current["vmax"], compare_session: reference["vmax"]},
-                {"metric": "Temp right (°C)", sesion: current["temp_right"], compare_session: reference["temp_right"]},
-                {"metric": "Anti-squat (%)", sesion: current["anti_squat"], compare_session: reference["anti_squat"]},
-                {"metric": "Rear pressure (bar)", sesion: current["p_rear"], compare_session: reference["p_rear"]},
+                {"campo": "sesion", "valor": sesion},
+                {"campo": "rol", "valor": rol},
+                {"campo": "total_tareas", "valor": int(total_count)},
+                {"campo": "tareas_completadas", "valor": int(done_count)},
+                {"campo": "progreso_pct", "valor": round(progress * 100, 2)},
+                {"campo": "filtro_estado", "valor": ", ".join(estados_sel)},
+                {"campo": "filtro_prioridad", "valor": ", ".join(prioridades_sel)},
+                {"campo": "busqueda", "valor": search_text.strip() if search_text.strip() else "(sin filtro)"},
             ]
         )
-        cmp_plot = cmp_df.melt(id_vars="metric", var_name="sesion", value_name="valor")
-        fig_cmp = px.bar(cmp_plot, x="metric", y="valor", color="sesion", barmode="group", title=f"{sesion} vs {compare_session}")
-        fig_cmp.update_layout(template="plotly_white", xaxis_title="Métrica", yaxis_title="Valor")
-        st.plotly_chart(fig_cmp, width="stretch")
-    else:
-        st.info("No hay datos suficientes para comparar esas sesiones.")
 
-st.markdown("---")
-
-# ============================================================
-# KPI CARDS
-# ============================================================
-
-kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
-
-kpi1.metric("⏱️ Mejor vuelta", fmt_num(best_lap, 2, " s"))
-kpi2.metric(
-    "🚀 Velocidad punta",
-    fmt_num(vmax, 0, " km/h"),
-    help=f"Recta principal: {get_setup_value('main_straight_m', '994')} m"
-)
-kpi3.metric(
-    "🌡️ Temp. flanco derecho",
-    fmt_num(temp_right, 1, " °C"),
-    delta="⚠️ Alta" if (temp_right is not None and temp_right > 95) else None,
-    delta_color="inverse"
-)
-kpi4.metric(
-    "⚙️ Anti-squat",
-    fmt_num(anti_squat, 0, " %"),
-    delta="En rango" if (anti_squat is not None and 108 <= anti_squat <= 112) else "Fuera de rango",
-    delta_color="normal" if (anti_squat is not None and 108 <= anti_squat <= 112) else "inverse"
-)
-kpi5.metric(
-    "💨 Presión trasera hot",
-    fmt_num(p_rear, 2, " bar"),
-    delta="⚠️ Bajo mínimo" if (p_rear is not None and p_rear < 1.65) else None,
-    delta_color="inverse",
-    help="Mínimo legal Race: 1.65 bar"
-)
-
-st.markdown("---")
-
-# ============================================================
-# GRÁFICOS — FILA 1: Tiempos + Sectores
-# ============================================================
-
-col_left, col_right = st.columns(2)
-
-with col_left:
-    if not dff.empty:
-        fig_lap = px.line(
-            dff, x="vuelta", y="lap_time_s", markers=True, color="run",
-            title=f"Evolución del tiempo por vuelta — {sesion}"
+        kpis_sesion = pd.DataFrame(
+            [
+                {"kpi": "mejor_vuelta_s", "valor": best_lap},
+                {"kpi": "velocidad_punta_kmh", "valor": vmax},
+                {"kpi": "temp_flanco_derecho_c", "valor": temp_right},
+                {"kpi": "anti_squat_pct", "valor": anti_squat},
+                {"kpi": "presion_trasera_hot_bar", "valor": p_rear},
+            ]
         )
-        fig_lap.update_layout(template="plotly_white", yaxis_title="Tiempo (s)", xaxis_title="Vuelta")
-    else:
-        fig_lap = go.Figure()
-        fig_lap.update_layout(title="Sin datos")
-    st.plotly_chart(fig_lap, width='stretch')
 
-with col_right:
-    if not dff.empty:
-        sectors_df = dff.melt(
-            id_vars=["vuelta", "run"],
-            value_vars=["sector_1_s", "sector_2_s", "sector_3_s"],
-            var_name="sector", value_name="tiempo"
+        xlsx_buffer = BytesIO()
+        with pd.ExcelWriter(xlsx_buffer, engine="openpyxl") as writer:
+            tasks_filtered.to_excel(writer, index=False, sheet_name="Tareas_Filtradas")
+            resumen_operativo.to_excel(writer, index=False, sheet_name="Resumen_Operativo")
+            kpis_sesion.to_excel(writer, index=False, sheet_name="KPIs_Sesion")
+        xlsx_data = xlsx_buffer.getvalue()
+
+        d1, d2 = st.columns(2)
+        d1.download_button(
+            label="Descargar tareas filtradas (CSV)",
+            data=csv_data,
+            file_name=f"tareas_{sesion}_{rol}.csv".replace(" ", "_"),
+            mime="text/csv",
+            width="content",
         )
-        fig_sector = px.bar(
-            sectors_df, x="vuelta", y="tiempo", color="sector", barmode="group",
-            title=f"Sectores por vuelta — {sesion}"
+        d2.download_button(
+            label="Descargar tareas filtradas (Excel multi-hoja)",
+            data=xlsx_data,
+            file_name=f"tareas_{sesion}_{rol}.xlsx".replace(" ", "_"),
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            width="content",
         )
-        fig_sector.update_layout(template="plotly_white", yaxis_title="Tiempo (s)", xaxis_title="Vuelta")
-    else:
-        fig_sector = go.Figure()
-        fig_sector.update_layout(title="Sin datos")
-    st.plotly_chart(fig_sector, width='stretch')
 
-# ============================================================
-# GRÁFICOS — FILA 2: Térmico + Presiones
-# ============================================================
-
-col_left2, col_right2 = st.columns(2)
-
-with col_left2:
-    fig_thermal = go.Figure()
-    if not dff.empty:
-        fig_thermal.add_trace(go.Scatter(
-            x=dff["vuelta"], y=dff["temp_neumatico_right_c"], mode="lines+markers", name="Flanco derecho"
-        ))
-        fig_thermal.add_trace(go.Scatter(
-            x=dff["vuelta"], y=dff["temp_neumatico_center_c"], mode="lines+markers", name="Centro"
-        ))
-        fig_thermal.add_trace(go.Scatter(
-            x=dff["vuelta"], y=dff["temp_neumatico_left_c"], mode="lines+markers", name="Flanco izquierdo"
-        ))
-    fig_thermal.update_layout(
-        title=f"Gradiente térmico del neumático — {sesion}",
-        template="plotly_white", xaxis_title="Vuelta", yaxis_title="Temperatura (°C)"
-    )
-    st.plotly_chart(fig_thermal, width='stretch')
-
-with col_right2:
-    fig_pressure = go.Figure()
-    if not dff.empty:
-        fig_pressure.add_trace(go.Bar(x=dff["vuelta"], y=dff["presion_front_hot_target_bar"], name="Delantera hot"))
-        fig_pressure.add_trace(go.Bar(x=dff["vuelta"], y=dff["presion_rear_hot_target_bar"], name="Trasera hot"))
-        fig_pressure.add_hline(y=1.65, line_dash="dash", annotation_text="Mínimo trasero")
-    fig_pressure.update_layout(
-        title=f"Presiones dinámicas objetivo — {sesion}",
-        template="plotly_white", xaxis_title="Vuelta", yaxis_title="Presión (bar)", barmode="group"
-    )
-    st.plotly_chart(fig_pressure, width='stretch')
-
-# ============================================================
-# GRÁFICOS — FILA 3: Mapas electrónicos + Compuestos
-# ============================================================
-if view_mode == "Completo":
-    col_left3, col_right3 = st.columns(2)
-
-    with col_left3:
-        fig_maps = go.Figure()
-        if not dff.empty:
-            fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["traction_control_lvl"], mode="lines+markers", name="TC"))
-            fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["engine_brake_lvl"], mode="lines+markers", name="EBC"))
-            fig_maps.add_trace(go.Scatter(x=dff["vuelta"], y=dff["anti_wheelie_lvl"], mode="lines+markers", name="AWC"))
-        fig_maps.update_layout(
-            title=f"Mapas electrónicos por vuelta — {sesion}",
-            template="plotly_white", xaxis_title="Vuelta", yaxis_title="Nivel"
-        )
-        st.plotly_chart(fig_maps, width='stretch')
-
-    with col_right3:
-        if not dff.empty:
-            compound_df = (
-                dff.groupby(["run", "neumatico_front", "neumatico_rear"], as_index=False)
-                .size()
-                .rename(columns={"size": "conteo"})
+        st.markdown("**Checklist por estado (solo lectura):**")
+        for _, row in tasks_visible.iterrows():
+            st.checkbox(
+                f"[{row['estado']}] ({row['prioridad']}) {row['tarea']}",
+                value=row["estado"] == "Done",
+                disabled=True,
             )
-            fig_compound = px.bar(
-                compound_df, x="run", y="conteo", color="neumatico_rear",
-                pattern_shape="neumatico_front",
-                title=f"Compuestos por run — {sesion}",
-                hover_data=["neumatico_front", "neumatico_rear"]
-            )
-            fig_compound.update_layout(template="plotly_white", xaxis_title="Run", yaxis_title="Registros")
+
+    if view_mode == "Completo":
+        st.markdown("---")
+        st.subheader("🧾 Telemetría detallada (paginada)")
+        visible_cols = [
+            "sesion", "run", "vuelta", "lap_time_s", "sector_1_s", "sector_2_s", "sector_3_s",
+            "velocidad_punta_kmh", "temp_neumatico_right_c", "presion_rear_hot_target_bar", "anti_squat_pct",
+        ]
+        table_cols = [col for col in visible_cols if col in dff.columns]
+        detailed_df = dff[table_cols].sort_values(["vuelta", "run"]) if table_cols else pd.DataFrame()
+        if detailed_df.empty:
+            st.caption("No hay datos de telemetría para mostrar en tabla.")
         else:
-            fig_compound = go.Figure()
-            fig_compound.update_layout(title="Sin datos")
-        st.plotly_chart(fig_compound, width='stretch')
-else:
-    st.caption("Modo Ejecutivo activo: se ocultan gráficos secundarios (mapas y compuestos) para una lectura más rápida.")
-
-st.markdown("---")
-
-# ============================================================
-# ANÁLISIS AVANZADO
-# ============================================================
-if view_mode == "Completo":
-    st.subheader("🔬 Análisis avanzado")
-    adv1, adv2 = st.columns(2)
-
-    with adv1:
-        if not dff.empty:
-            fig_scatter = px.scatter(
-                dff,
-                x="temp_neumatico_right_c",
-                y="lap_time_s",
-                color="run",
-                size="velocidad_punta_kmh",
-                hover_data=["vuelta", "sector_1_s", "sector_2_s", "sector_3_s"],
-                title="Relación temperatura derecha vs tiempo de vuelta",
+            telem_total = len(detailed_df)
+            telem_pages = max(1, math.ceil(telem_total / telemetry_page_size))
+            st.session_state.telemetry_page = min(max(int(st.session_state.telemetry_page), 1), telem_pages)
+            t1, t2 = st.columns([1, 4])
+            current_telem_page = int(
+                t1.number_input(
+                    "Página telemetría",
+                    min_value=1,
+                    max_value=telem_pages,
+                    step=1,
+                    key="telemetry_page",
+                )
             )
-            fig_scatter.update_layout(template="plotly_white", xaxis_title="Temp flanco derecho (°C)", yaxis_title="Lap time (s)")
-        else:
-            fig_scatter = go.Figure()
-            fig_scatter.update_layout(title="Sin datos")
-        st.plotly_chart(fig_scatter, width="stretch")
+            telem_visible = paginate_df(detailed_df, current_telem_page, telemetry_page_size)
+            start_telem = (current_telem_page - 1) * telemetry_page_size + 1
+            end_telem = min(current_telem_page * telemetry_page_size, telem_total)
+            t2.caption(f"Mostrando {start_telem}-{end_telem} de {telem_total} registros")
+            st.dataframe(telem_visible, width="stretch", hide_index=True)
 
-    with adv2:
-        corr_cols = [
-            "lap_time_s",
-            "velocidad_punta_kmh",
-            "temp_neumatico_right_c",
-            "presion_rear_hot_target_bar",
-            "anti_squat_pct",
-            "track_temp_c",
-        ]
-        available_corr_cols = [col for col in corr_cols if col in dff.columns]
-        corr_df = dff[available_corr_cols].dropna() if not dff.empty and available_corr_cols else pd.DataFrame()
-        if not corr_df.empty and len(corr_df) > 1:
-            fig_corr = px.imshow(
-                corr_df.corr(numeric_only=True),
-                text_auto=True,
-                color_continuous_scale="RdBu",
-                origin="lower",
-                title="Matriz de correlación (sesión)",
-                zmin=-1,
-                zmax=1,
-            )
-            fig_corr.update_layout(template="plotly_white")
-        else:
-            fig_corr = go.Figure()
-            fig_corr.update_layout(title="Sin datos suficientes para correlación")
-        st.plotly_chart(fig_corr, width="stretch")
-
-    hist_df = dff[["lap_time_s", "run"]].dropna() if not dff.empty else pd.DataFrame()
-    if not hist_df.empty:
-        fig_hist = px.histogram(
-            hist_df,
-            x="lap_time_s",
-            color="run",
-            barmode="overlay",
-            nbins=12,
-            title="Distribución de tiempos de vuelta por run",
-            opacity=0.7,
-        )
-        fig_hist.update_layout(template="plotly_white", xaxis_title="Lap time (s)", yaxis_title="Frecuencia")
-        st.plotly_chart(fig_hist, width="stretch")
-
-st.markdown("---")
-
-# ============================================================
-# CIRCUITO POR LOCALIZACIÓN
-# ============================================================
-
-st.subheader("🗺️ Mapa del circuito por localización")
-circuit_col, context_col = st.columns([2, 1])
-
-with circuit_col:
-    fig_circuit = build_circuit_figure(dff, circuit_color_mode, selected_lap)
-    st.plotly_chart(fig_circuit, width='stretch')
-
-with context_col:
-    st.markdown("**Referencia geográfica**")
-    st.write("• Trazado aproximado del Autódromo de Goiânia")
-    st.write("• Curvas etiquetadas por punto")
-    st.write(f"• Color activo: {circuit_color_mode}")
-    if selected_lap is not None:
-        st.write(f"• Vuelta resaltada: {selected_lap}")
-    st.caption("Visual de apoyo para análisis táctico por sesión.")
-
-st.markdown("---")
-
-# ============================================================
-# KANBAN OPERATIVO
-# ============================================================
-
-st.subheader("📋 Kanban operativo por rol")
-
-todo_tasks = tff[tff["estado"] == "Todo"]["tarea"].tolist()
-progress_tasks = tff[tff["estado"] == "In Progress"]["tarea"].tolist()
-done_tasks = tff[tff["estado"] == "Done"]["tarea"].tolist()
-
-k1, k2, k3 = st.columns(3)
-
-
-def render_kanban_col(container, title, tasks, bg_color):
-    items_html = "".join(
-        f"<div style='background:white;padding:8px 10px;border-radius:8px;"
-        f"margin-top:8px;font-size:13px;box-shadow:0 1px 4px rgba(0,0,0,0.07)'>{t}</div>"
-        for t in tasks
-    ) if tasks else "<p style='color:#6b7280;font-size:13px;margin-top:8px'>Sin tareas</p>"
-    with container:
-        st.markdown(
-            f"<div style='background:{bg_color};padding:14px;border-radius:12px;min-height:200px'>"
-            f"<strong style='font-size:15px'>{title}</strong>{items_html}</div>",
-            unsafe_allow_html=True
-        )
-
-
-render_kanban_col(k1, "🔵 Todo", todo_tasks, "#eef2ff")
-render_kanban_col(k2, "🟠 In Progress", progress_tasks, "#fff7ed")
-render_kanban_col(k3, "🟢 Done", done_tasks, "#ecfdf5")
-
-st.markdown("### ✅ Lista de tareas operativas")
-if tff.empty:
-    st.info("No hay tareas para este rol en la sesión seleccionada.")
-else:
-    order_map = {"Alta": 0, "Media": 1, "Baja": 2}
-    tasks_table = tff[["tarea", "estado", "prioridad"]].copy()
-    tasks_table["_orden"] = tasks_table["prioridad"].map(order_map).fillna(99)
-    tasks_table = tasks_table.sort_values(["_orden", "estado", "tarea"]).drop(columns=["_orden"])
-
-    done_count = (tasks_table["estado"] == "Done").sum()
-    total_count = len(tasks_table)
-    progress = done_count / total_count if total_count else 0
-
-    p1, p2 = st.columns([1, 3])
-    p1.metric("Completadas", f"{done_count}/{total_count}")
-    p2.progress(progress, text=f"Progreso operativo: {progress * 100:.0f}%")
-
-    st.markdown("**Filtros rápidos de tareas**")
-    f1, f2, f3 = st.columns([1, 1, 2])
-    estado_opts = sorted(tasks_table["estado"].dropna().unique().tolist())
-    prioridad_opts = sorted(tasks_table["prioridad"].dropna().unique().tolist())
-
-    if "task_estados_sel" not in st.session_state:
-        st.session_state.task_estados_sel = estado_opts
-    if "task_prioridades_sel" not in st.session_state:
-        st.session_state.task_prioridades_sel = prioridad_opts
-
-    st.session_state.task_estados_sel = [e for e in st.session_state.task_estados_sel if e in estado_opts]
-    st.session_state.task_prioridades_sel = [p for p in st.session_state.task_prioridades_sel if p in prioridad_opts]
-    if not st.session_state.task_estados_sel:
-        st.session_state.task_estados_sel = estado_opts
-    if not st.session_state.task_prioridades_sel:
-        st.session_state.task_prioridades_sel = prioridad_opts
-
-    estados_sel = f1.multiselect(
-        "Estado",
-        options=estado_opts,
-        key="task_estados_sel",
-    )
-    prioridades_sel = f2.multiselect(
-        "Prioridad",
-        options=prioridad_opts,
-        key="task_prioridades_sel",
-    )
-    search_text = f3.text_input("Buscar tarea", placeholder="Ej: presión, limitador, tracción", key="task_search")
-
-    tasks_filtered = tasks_table[
-        tasks_table["estado"].isin(estados_sel) & tasks_table["prioridad"].isin(prioridades_sel)
-    ].copy()
-    if search_text.strip():
-        tasks_filtered = tasks_filtered[
-            tasks_filtered["tarea"].str.contains(search_text.strip(), case=False, na=False)
-        ]
-
-    total_filtered = len(tasks_filtered)
-    task_total_pages = max(1, math.ceil(total_filtered / task_page_size))
-    st.session_state.task_page = min(max(int(st.session_state.task_page), 1), task_total_pages)
-    pcol1, pcol2 = st.columns([1, 4])
-    current_task_page = int(
-        pcol1.number_input(
-            "Página tareas",
-            min_value=1,
-            max_value=task_total_pages,
-            step=1,
-            key="task_page",
-        )
-    )
-    tasks_visible = paginate_df(tasks_filtered, current_task_page, task_page_size)
-    start_row = (current_task_page - 1) * task_page_size + (1 if total_filtered > 0 else 0)
-    end_row = min(current_task_page * task_page_size, total_filtered)
-    pcol2.caption(f"Mostrando {start_row}-{end_row} de {total_filtered} tareas filtradas")
-
-    st.dataframe(tasks_visible, width="stretch", hide_index=True)
-
-    csv_data = tasks_filtered.to_csv(index=False).encode("utf-8")
-
-    resumen_operativo = pd.DataFrame(
-        [
-            {"campo": "sesion", "valor": sesion},
-            {"campo": "rol", "valor": rol},
-            {"campo": "total_tareas", "valor": int(total_count)},
-            {"campo": "tareas_completadas", "valor": int(done_count)},
-            {"campo": "progreso_pct", "valor": round(progress * 100, 2)},
-            {"campo": "filtro_estado", "valor": ", ".join(estados_sel)},
-            {"campo": "filtro_prioridad", "valor": ", ".join(prioridades_sel)},
-            {"campo": "busqueda", "valor": search_text.strip() if search_text.strip() else "(sin filtro)"},
-        ]
-    )
-
-    kpis_sesion = pd.DataFrame(
-        [
-            {"kpi": "mejor_vuelta_s", "valor": best_lap},
-            {"kpi": "velocidad_punta_kmh", "valor": vmax},
-            {"kpi": "temp_flanco_derecho_c", "valor": temp_right},
-            {"kpi": "anti_squat_pct", "valor": anti_squat},
-            {"kpi": "presion_trasera_hot_bar", "valor": p_rear},
-        ]
-    )
-
-    xlsx_buffer = BytesIO()
-    with pd.ExcelWriter(xlsx_buffer, engine="openpyxl") as writer:
-        tasks_filtered.to_excel(writer, index=False, sheet_name="Tareas_Filtradas")
-        resumen_operativo.to_excel(writer, index=False, sheet_name="Resumen_Operativo")
-        kpis_sesion.to_excel(writer, index=False, sheet_name="KPIs_Sesion")
-    xlsx_data = xlsx_buffer.getvalue()
-
-    d1, d2 = st.columns(2)
-    d1.download_button(
-        label="Descargar tareas filtradas (CSV)",
-        data=csv_data,
-        file_name=f"tareas_{sesion}_{rol}.csv".replace(" ", "_"),
-        mime="text/csv",
-        width="content",
-    )
-    d2.download_button(
-        label="Descargar tareas filtradas (Excel multi-hoja)",
-        data=xlsx_data,
-        file_name=f"tareas_{sesion}_{rol}.xlsx".replace(" ", "_"),
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        width="content",
-    )
-
-    st.markdown("**Checklist por estado (solo lectura):**")
-    for _, row in tasks_visible.iterrows():
-        st.checkbox(
-            f"[{row['estado']}] ({row['prioridad']}) {row['tarea']}",
-            value=row["estado"] == "Done",
-            disabled=True,
-        )
-
-if view_mode == "Completo":
     st.markdown("---")
-    st.subheader("🧾 Telemetría detallada (paginada)")
-    visible_cols = [
-        "sesion", "run", "vuelta", "lap_time_s", "sector_1_s", "sector_2_s", "sector_3_s",
-        "velocidad_punta_kmh", "temp_neumatico_right_c", "presion_rear_hot_target_bar", "anti_squat_pct",
-    ]
-    table_cols = [col for col in visible_cols if col in dff.columns]
-    detailed_df = dff[table_cols].sort_values(["vuelta", "run"]) if table_cols else pd.DataFrame()
-    if detailed_df.empty:
-        st.caption("No hay datos de telemetría para mostrar en tabla.")
-    else:
-        telem_total = len(detailed_df)
-        telem_pages = max(1, math.ceil(telem_total / telemetry_page_size))
-        st.session_state.telemetry_page = min(max(int(st.session_state.telemetry_page), 1), telem_pages)
-        t1, t2 = st.columns([1, 4])
-        current_telem_page = int(
-            t1.number_input(
-                "Página telemetría",
-                min_value=1,
-                max_value=telem_pages,
-                step=1,
-                key="telemetry_page",
+
+    # ============================================================
+    # RESUMEN DEL SETUP
+    # ============================================================
+
+    st.subheader("🔧 Resumen del setup")
+
+    wheelbase = get_setup_value("wheelbase_delta_mm", dff["wheelbase_delta_mm"].iloc[0] if not dff.empty else "N/D")
+    rake = get_setup_value("rake_delta_deg", dff["rake_delta_deg"].iloc[0] if not dff.empty else "N/D")
+    anti_min = get_setup_value("anti_squat_target_min_pct", "108")
+    anti_max = get_setup_value("anti_squat_target_max_pct", "112")
+    swingarm = get_setup_value("swingarm_pivot_delta_mm", dff["swingarm_pivot_delta_mm"].iloc[0] if not dff.empty else "N/D")
+    straight = get_setup_value("main_straight_m", "994")
+    curves_right = get_setup_value("curves_right", "9")
+    curves_left = get_setup_value("curves_left", "5")
+
+    track_temp_mean = dff["track_temp_c"].mean() if not dff.empty else None
+    air_temp_mean = dff["air_temp_c"].mean() if not dff.empty else None
+    humidity_mean = dff["humidity_pct"].mean() if not dff.empty else None
+
+    setup_s1, setup_s2, setup_s3 = st.columns(3)
+
+    with setup_s1:
+        st.markdown("**Geometría**")
+        st.write(f"• Wheelbase: +{wheelbase} mm")
+        st.write(f"• Rake: {rake}°")
+        st.write(f"• Swingarm Pivot: +{swingarm} mm")
+
+    with setup_s2:
+        st.markdown("**Anti-squat & Trazado**")
+        st.write(f"• Anti-squat objetivo: {anti_min}%–{anti_max}%")
+        st.write(f"• Recta principal: {straight} m")
+        st.write(f"• Asimetría: {curves_right} derechas / {curves_left} izquierdas")
+
+    with setup_s3:
+        st.markdown("**Condiciones medias de sesión**")
+        st.write(f"• Track: {fmt_num(track_temp_mean, 1, ' °C')}")
+        st.write(f"• Aire: {fmt_num(air_temp_mean, 1, ' °C')}")
+        st.write(f"• Humedad: {fmt_num(humidity_mean, 1, '%')}")
+
+    st.markdown("---")
+
+    # ============================================================
+    # LECTURA TÁCTICA POR ROL
+    # ============================================================
+
+    st.subheader("🎯 Lectura táctica por rol")
+    st.info(INSIGHTS.get(rol, "Sin insight disponible para este rol."))
+
+    # Guardado persistente de preferencias entre sesiones locales.
+    prefs_to_save = {
+        "view_mode": st.session_state.get("view_mode", "Completo"),
+        "task_page_size": int(st.session_state.get("task_page_size", 8)),
+        "telemetry_page_size": int(st.session_state.get("telemetry_page_size", 10)),
+        "task_page": int(st.session_state.get("task_page", 1)),
+        "telemetry_page": int(st.session_state.get("telemetry_page", 1)),
+        "task_search": st.session_state.get("task_search", ""),
+        "task_estados_sel": st.session_state.get("task_estados_sel", []),
+        "task_prioridades_sel": st.session_state.get("task_prioridades_sel", []),
+        "selected_role": st.session_state.get("selected_role", ""),
+        "selected_session": st.session_state.get("selected_session", ""),
+        "selected_compare_session": st.session_state.get("selected_compare_session", "Ninguna"),
+        "circuit_color_mode": st.session_state.get("circuit_color_mode", "Tiempo de vuelta"),
+        "selected_lap": st.session_state.get("selected_lap", None),
+    }
+    if st.session_state.get("_last_saved_prefs") != prefs_to_save:
+        save_ui_prefs(prefs_to_save)
+        st.session_state._last_saved_prefs = prefs_to_save
+
+with tab_aspar:
+    # ============================================================
+    # ASPAR — SPEC DOMINGO
+    # ============================================================
+
+    ASPAR_CSV = "Spec_Domingo_completed.csv"
+
+    SECTION_ICONS = {
+        "BIKE": "🏍️", "TYRES": "🔴", "FORK": "🔩", "SHOCK": "🔧",
+        "GEOMETRY": "📐", "ENGINE": "⚡", "EXT CONDITION": "🌡️",
+    }
+
+    SECTION_COLORS = {
+        "BIKE": "#1e3a5f", "TYRES": "#7f1d1d", "FORK": "#1e3a5f",
+        "SHOCK": "#1e3a5f", "GEOMETRY": "#14532d", "ENGINE": "#3b1278",
+        "EXT CONDITION": "#78350f",
+    }
+
+    SETTING_NAMES = {
+        "SETTING 1": "FP1 Base / Shakedown",
+        "SETTING 2": "Practice Hot",
+        "SETTING 3": "Q2 Time Attack",
+        "SETTING 4": "Race Setup",
+        "SETTING 5": "Stability (Long WB)",
+        "SETTING 6": "Traction (High AS)",
+    }
+
+    @st.cache_data
+    def load_aspar_csv():
+        df = pd.read_csv(ASPAR_CSV)
+        return df
+
+    st.title("🏟️ Aspar — Spec Domingo")
+    st.markdown(
+        "Comparativo de los **6 settings** registrados durante la prueba en Aspar. "
+        "Cada sección cubre una categoría técnica independiente."
+    )
+    st.markdown("---")
+
+    try:
+        aspar_df = load_aspar_csv()
+    except FileNotFoundError:
+        st.error(f"No se encontró el archivo '{ASPAR_CSV}'.")
+        aspar_df = pd.DataFrame()
+
+    if not aspar_df.empty:
+        setting_cols = [c for c in aspar_df.columns if c.startswith("SETTING")]
+        sections = aspar_df["section"].unique().tolist()
+
+        # ── KPIs rápidos ──────────────────────────────────────────
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("⚙️ Settings", len(setting_cols))
+        k2.metric("📦 Secciones", len(sections))
+        k3.metric("📐 Parámetros", len(aspar_df))
+
+        # Condición más repetida
+        if "EXT CONDITION" in aspar_df["section"].values:
+            cond_row = aspar_df[(aspar_df["section"] == "EXT CONDITION") & (aspar_df["parameter"] == "Condition")]
+            cond_val = cond_row[setting_cols[0]].values[0] if not cond_row.empty else "N/D"
+        else:
+            cond_val = "N/D"
+        k4.metric("🌤️ Condición", cond_val)
+
+        st.markdown("---")
+
+        # ── Temperaturas de pista por setting ─────────────────────
+        st.subheader("🌡️ Condiciones externas por setting")
+        ext_df = aspar_df[aspar_df["section"] == "EXT CONDITION"].copy()
+        if not ext_df.empty:
+            ext_pivot = ext_df.set_index("parameter")[setting_cols].T.reset_index()
+            ext_pivot.rename(columns={"index": "Setting"}, inplace=True)
+            ext_pivot["Setting_Nombre"] = ext_pivot["Setting"].map(SETTING_NAMES)
+
+            ext_cols_display = st.columns(len(setting_cols))
+            for col_widget, (_, row) in zip(ext_cols_display, ext_pivot.iterrows()):
+                sname = SETTING_NAMES.get(row["Setting"], row["Setting"])
+                with col_widget:
+                    st.markdown(f"**{row['Setting']}**")
+                    st.caption(sname)
+                    for param in ["Air Temp", "Asph Temp", "Wind", "Humidity", "Condition"]:
+                        if param in ext_df["parameter"].values:
+                            val = ext_df[ext_df["parameter"] == param][row["Setting"]].values
+                            val_str = val[0] if len(val) > 0 else "N/D"
+                            st.write(f"• **{param}:** {val_str}")
+
+        st.markdown("---")
+
+        # ── Neumáticos por setting ─────────────────────────────────
+        st.subheader("🔴 Neumáticos por setting")
+        tyre_df = aspar_df[aspar_df["section"] == "TYRES"].copy()
+        if not tyre_df.empty:
+            tyre_pivot = tyre_df.set_index("parameter")[setting_cols].T.reset_index()
+            tyre_pivot.rename(columns={"index": "Setting"}, inplace=True)
+            tyre_pivot.insert(1, "Nombre", tyre_pivot["Setting"].map(SETTING_NAMES))
+
+            st.dataframe(tyre_pivot, use_container_width=True, hide_index=True)
+
+            # Gráfico de compuestos
+            compound_rows = []
+            for s_col in setting_cols:
+                f_type_row = tyre_df[tyre_df["parameter"] == "F Type"]
+                r_type_row = tyre_df[tyre_df["parameter"] == "R Type"]
+                f_type = f_type_row[s_col].values[0] if not f_type_row.empty else "N/D"
+                r_type = r_type_row[s_col].values[0] if not r_type_row.empty else "N/D"
+                compound_rows.append({
+                    "Setting": s_col,
+                    "Nombre": SETTING_NAMES.get(s_col, s_col),
+                    "Delantero": f_type,
+                    "Trasero": r_type,
+                })
+            compound_df = pd.DataFrame(compound_rows)
+
+            fig_compound = px.bar(
+                compound_df.melt(id_vars=["Setting", "Nombre"], value_vars=["Delantero", "Trasero"],
+                                  var_name="Eje", value_name="Compuesto"),
+                x="Setting", y="Compuesto", color="Eje", barmode="group",
+                text="Compuesto",
+                title="Compuesto delantero vs trasero por setting",
+                hover_data=["Nombre"],
+                color_discrete_map={"Delantero": "#3b82f6", "Trasero": "#ef4444"},
             )
+            fig_compound.update_traces(textposition="outside")
+            fig_compound.update_layout(template="plotly_white", yaxis_title="", xaxis_title="Setting",
+                                        yaxis_visible=False)
+            st.plotly_chart(fig_compound, use_container_width=True)
+
+        st.markdown("---")
+
+        # ── Suspensión (FORK + SHOCK) ──────────────────────────────
+        st.subheader("🔩 Suspensión: horquilla y amortiguador")
+        susp_tab1, susp_tab2 = st.tabs(["🔩 Fork", "🔧 Shock"])
+
+        with susp_tab1:
+            fork_df = aspar_df[aspar_df["section"] == "FORK"].set_index("parameter")[setting_cols].T.reset_index()
+            fork_df.rename(columns={"index": "Setting"}, inplace=True)
+            fork_df.insert(1, "Nombre", fork_df["Setting"].map(SETTING_NAMES))
+            st.dataframe(fork_df, use_container_width=True, hide_index=True)
+
+            # Gráfico de compression y rebound del fork
+            fork_raw = aspar_df[aspar_df["section"] == "FORK"].copy()
+            numeric_params_fork = ["Compression", "Rebound", "Preload", "SAG", "Free SAG"]
+            fork_numeric = fork_raw[fork_raw["parameter"].isin(numeric_params_fork)].copy()
+            if not fork_numeric.empty:
+                fork_melt = fork_numeric.melt(
+                    id_vars=["parameter"], value_vars=setting_cols,
+                    var_name="Setting", value_name="Valor_raw"
+                )
+                fork_melt["Valor"] = pd.to_numeric(
+                    fork_melt["Valor_raw"].str.extract(r"([\d.]+)")[0], errors="coerce"
+                )
+                fork_melt["Nombre"] = fork_melt["Setting"].map(SETTING_NAMES)
+                fig_fork = px.line(
+                    fork_melt.dropna(subset=["Valor"]),
+                    x="Setting", y="Valor", color="parameter", markers=True,
+                    title="Parámetros numéricos de horquilla por setting",
+                    hover_data=["Nombre", "Valor_raw"],
+                )
+                fig_fork.update_layout(template="plotly_white", xaxis_title="Setting", yaxis_title="Valor")
+                st.plotly_chart(fig_fork, use_container_width=True)
+
+        with susp_tab2:
+            shock_df = aspar_df[aspar_df["section"] == "SHOCK"].set_index("parameter")[setting_cols].T.reset_index()
+            shock_df.rename(columns={"index": "Setting"}, inplace=True)
+            shock_df.insert(1, "Nombre", shock_df["Setting"].map(SETTING_NAMES))
+            st.dataframe(shock_df, use_container_width=True, hide_index=True)
+
+            shock_raw = aspar_df[aspar_df["section"] == "SHOCK"].copy()
+            numeric_params_shock = ["Compression", "Rebound", "Preload", "SAG", "Free SAG", "Total Length"]
+            shock_numeric = shock_raw[shock_raw["parameter"].isin(numeric_params_shock)].copy()
+            if not shock_numeric.empty:
+                shock_melt = shock_numeric.melt(
+                    id_vars=["parameter"], value_vars=setting_cols,
+                    var_name="Setting", value_name="Valor_raw"
+                )
+                shock_melt["Valor"] = pd.to_numeric(
+                    shock_melt["Valor_raw"].str.extract(r"([\d.]+)")[0], errors="coerce"
+                )
+                shock_melt["Nombre"] = shock_melt["Setting"].map(SETTING_NAMES)
+                fig_shock = px.line(
+                    shock_melt.dropna(subset=["Valor"]),
+                    x="Setting", y="Valor", color="parameter", markers=True,
+                    title="Parámetros numéricos de amortiguador por setting",
+                    hover_data=["Nombre", "Valor_raw"],
+                )
+                fig_shock.update_layout(template="plotly_white", xaxis_title="Setting", yaxis_title="Valor")
+                st.plotly_chart(fig_shock, use_container_width=True)
+
+        st.markdown("---")
+
+        # ── Geometría ──────────────────────────────────────────────
+        st.subheader("📐 Geometría")
+        geo_df = aspar_df[aspar_df["section"] == "GEOMETRY"].set_index("parameter")[setting_cols].T.reset_index()
+        geo_df.rename(columns={"index": "Setting"}, inplace=True)
+        geo_df.insert(1, "Nombre", geo_df["Setting"].map(SETTING_NAMES))
+        st.dataframe(geo_df, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+
+        # ── Motor ──────────────────────────────────────────────────
+        st.subheader("⚡ Motor")
+        eng_df = aspar_df[aspar_df["section"] == "ENGINE"].set_index("parameter")[setting_cols].T.reset_index()
+        eng_df.rename(columns={"index": "Setting"}, inplace=True)
+        eng_df.insert(1, "Nombre", eng_df["Setting"].map(SETTING_NAMES))
+        st.dataframe(eng_df, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+
+        # ── Comparador lateral de dos settings ────────────────────
+        st.subheader("🔍 Comparador de settings")
+        st.caption("Selecciona dos settings para ver las diferencias parámetro a parámetro.")
+        cmp_c1, cmp_c2 = st.columns(2)
+        setting_a = cmp_c1.selectbox("Setting A", setting_cols, index=0,
+                                      format_func=lambda s: f"{s} — {SETTING_NAMES.get(s, '')}")
+        setting_b = cmp_c2.selectbox("Setting B", setting_cols, index=3,
+                                      format_func=lambda s: f"{s} — {SETTING_NAMES.get(s, '')}")
+
+        if setting_a != setting_b:
+            diff_rows = []
+            for _, row in aspar_df.iterrows():
+                val_a = row[setting_a]
+                val_b = row[setting_b]
+                diff = "✅ Igual" if str(val_a).strip() == str(val_b).strip() else "⚠️ Diferente"
+                diff_rows.append({
+                    "Sección": row["section"],
+                    "Parámetro": row["parameter"],
+                    setting_a: val_a,
+                    setting_b: val_b,
+                    "Estado": diff,
+                })
+            diff_df = pd.DataFrame(diff_rows)
+            n_diff = (diff_df["Estado"] == "⚠️ Diferente").sum()
+            st.info(f"**{n_diff} parámetros difieren** entre {setting_a} y {setting_b}.")
+
+            only_diff = st.checkbox("Mostrar solo diferencias", value=True)
+            if only_diff:
+                diff_df = diff_df[diff_df["Estado"] == "⚠️ Diferente"]
+
+            def color_estado(val):
+                if val == "⚠️ Diferente":
+                    return "background-color: #fef9c3; color: #78350f; font-weight: bold"
+                return "color: #15803d"
+
+            st.dataframe(
+                diff_df.style.applymap(color_estado, subset=["Estado"]),
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.warning("Selecciona dos settings distintos para comparar.")
+
+        st.markdown("---")
+
+        # ── Exportar ───────────────────────────────────────────────
+        st.subheader("⬇️ Exportar spec completo")
+        ec1, ec2 = st.columns(2)
+
+        # CSV
+        csv_bytes = aspar_df.to_csv(index=False).encode("utf-8")
+        ec1.download_button(
+            label="Descargar spec completo (CSV)",
+            data=csv_bytes,
+            file_name="aspar_spec_domingo.csv",
+            mime="text/csv",
         )
-        telem_visible = paginate_df(detailed_df, current_telem_page, telemetry_page_size)
-        start_telem = (current_telem_page - 1) * telemetry_page_size + 1
-        end_telem = min(current_telem_page * telemetry_page_size, telem_total)
-        t2.caption(f"Mostrando {start_telem}-{end_telem} de {telem_total} registros")
-        st.dataframe(telem_visible, width="stretch", hide_index=True)
 
-st.markdown("---")
-
-# ============================================================
-# RESUMEN DEL SETUP
-# ============================================================
-
-st.subheader("🔧 Resumen del setup")
-
-wheelbase = get_setup_value("wheelbase_delta_mm", dff["wheelbase_delta_mm"].iloc[0] if not dff.empty else "N/D")
-rake = get_setup_value("rake_delta_deg", dff["rake_delta_deg"].iloc[0] if not dff.empty else "N/D")
-anti_min = get_setup_value("anti_squat_target_min_pct", "108")
-anti_max = get_setup_value("anti_squat_target_max_pct", "112")
-swingarm = get_setup_value("swingarm_pivot_delta_mm", dff["swingarm_pivot_delta_mm"].iloc[0] if not dff.empty else "N/D")
-straight = get_setup_value("main_straight_m", "994")
-curves_right = get_setup_value("curves_right", "9")
-curves_left = get_setup_value("curves_left", "5")
-
-track_temp_mean = dff["track_temp_c"].mean() if not dff.empty else None
-air_temp_mean = dff["air_temp_c"].mean() if not dff.empty else None
-humidity_mean = dff["humidity_pct"].mean() if not dff.empty else None
-
-setup_s1, setup_s2, setup_s3 = st.columns(3)
-
-with setup_s1:
-    st.markdown("**Geometría**")
-    st.write(f"• Wheelbase: +{wheelbase} mm")
-    st.write(f"• Rake: {rake}°")
-    st.write(f"• Swingarm Pivot: +{swingarm} mm")
-
-with setup_s2:
-    st.markdown("**Anti-squat & Trazado**")
-    st.write(f"• Anti-squat objetivo: {anti_min}%–{anti_max}%")
-    st.write(f"• Recta principal: {straight} m")
-    st.write(f"• Asimetría: {curves_right} derechas / {curves_left} izquierdas")
-
-with setup_s3:
-    st.markdown("**Condiciones medias de sesión**")
-    st.write(f"• Track: {fmt_num(track_temp_mean, 1, ' °C')}")
-    st.write(f"• Aire: {fmt_num(air_temp_mean, 1, ' °C')}")
-    st.write(f"• Humedad: {fmt_num(humidity_mean, 1, '%')}")
-
-st.markdown("---")
-
-# ============================================================
-# LECTURA TÁCTICA POR ROL
-# ============================================================
-
-st.subheader("🎯 Lectura táctica por rol")
-st.info(INSIGHTS.get(rol, "Sin insight disponible para este rol."))
-
-# Guardado persistente de preferencias entre sesiones locales.
-prefs_to_save = {
-    "view_mode": st.session_state.get("view_mode", "Completo"),
-    "task_page_size": int(st.session_state.get("task_page_size", 8)),
-    "telemetry_page_size": int(st.session_state.get("telemetry_page_size", 10)),
-    "task_page": int(st.session_state.get("task_page", 1)),
-    "telemetry_page": int(st.session_state.get("telemetry_page", 1)),
-    "task_search": st.session_state.get("task_search", ""),
-    "task_estados_sel": st.session_state.get("task_estados_sel", []),
-    "task_prioridades_sel": st.session_state.get("task_prioridades_sel", []),
-    "selected_role": st.session_state.get("selected_role", ""),
-    "selected_session": st.session_state.get("selected_session", ""),
-    "selected_compare_session": st.session_state.get("selected_compare_session", "Ninguna"),
-    "circuit_color_mode": st.session_state.get("circuit_color_mode", "Tiempo de vuelta"),
-    "selected_lap": st.session_state.get("selected_lap", None),
-}
-if st.session_state.get("_last_saved_prefs") != prefs_to_save:
-    save_ui_prefs(prefs_to_save)
-    st.session_state._last_saved_prefs = prefs_to_save
+        # Excel multi-hoja
+        spec_buffer = BytesIO()
+        with pd.ExcelWriter(spec_buffer, engine="openpyxl") as writer:
+            for sec in sections:
+                sec_data = aspar_df[aspar_df["section"] == sec].drop(columns=["section"])
+                sec_data.to_excel(writer, index=False, sheet_name=sec[:31])
+        ec2.download_button(
+            label="Descargar spec completo (Excel multi-hoja)",
+            data=spec_buffer.getvalue(),
+            file_name="aspar_spec_domingo.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
