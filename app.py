@@ -1332,34 +1332,44 @@ with tab_rag:
         "El asistente recupera contexto local de Chroma y responde con fuentes."
     )
 
+    root_path = Path(__file__).resolve().parent
+    rag_build_module = None
+
+    def load_module_from_file(module_name, module_path):
+        spec = importlib.util.spec_from_file_location(module_name, module_path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"No se pudo crear el spec para {module_name}.")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    # rag_chat es imprescindible para consultar. Si falla, detenemos esta pestaña.
     try:
-        from rag_agent import rag_build as rag_build_module
         from rag_agent import rag_chat as rag_chat_module
     except Exception:
         try:
-            root_path = Path(__file__).resolve().parent
             if str(root_path) not in sys.path:
                 sys.path.insert(0, str(root_path))
-
-            rag_build_path = root_path / "rag_agent" / "rag_build.py"
             rag_chat_path = root_path / "rag_agent" / "rag_chat.py"
-
-            if not rag_build_path.exists() or not rag_chat_path.exists():
-                raise FileNotFoundError("No se encontraron rag_build.py/rag_chat.py en la carpeta rag_agent.")
-
-            spec_build = importlib.util.spec_from_file_location("rag_build_module", rag_build_path)
-            spec_chat = importlib.util.spec_from_file_location("rag_chat_module", rag_chat_path)
-            if spec_build is None or spec_build.loader is None or spec_chat is None or spec_chat.loader is None:
-                raise ImportError("No se pudo crear el spec de importación dinámica para rag_agent.")
-
-            rag_build_module = importlib.util.module_from_spec(spec_build)
-            rag_chat_module = importlib.util.module_from_spec(spec_chat)
-            spec_build.loader.exec_module(rag_build_module)
-            spec_chat.loader.exec_module(rag_chat_module)
+            if not rag_chat_path.exists():
+                raise FileNotFoundError("No se encontró rag_chat.py en la carpeta rag_agent.")
+            rag_chat_module = load_module_from_file("rag_chat_module", rag_chat_path)
         except Exception as exc:
-            st.error("No se pudieron cargar los módulos RAG. Revisa que exista la carpeta rag_agent y las dependencias instaladas.")
+            st.error("No se pudo cargar el módulo de chat RAG. Revisa la carpeta rag_agent y dependencias básicas.")
             st.exception(exc)
             st.stop()
+
+    # rag_build sólo se usa para reconstruir el índice. Si falta alguna dependencia
+    # (p.ej. python-docx), dejamos el chat operativo e informamos en el botón.
+    try:
+        from rag_agent import rag_build as rag_build_module
+    except Exception:
+        try:
+            rag_build_path = root_path / "rag_agent" / "rag_build.py"
+            if rag_build_path.exists():
+                rag_build_module = load_module_from_file("rag_build_module", rag_build_path)
+        except Exception:
+            rag_build_module = None
 
     st.markdown("---")
 
@@ -1437,18 +1447,25 @@ with tab_rag:
     rebuild_col, status_col = st.columns([1, 2])
     if rebuild_col.button("Reconstruir índice", width="stretch"):
         with st.spinner("Indexando documentos..."):
-            try:
-                rag_build_module.build_index(
-                    collection_name=collection_name,
-                    chunk_size=chunk_size,
-                    overlap=overlap,
-                    rebuild=True,
-                )
-                st.session_state["rag_ready"] = True
-                st.success("Índice reconstruido correctamente.")
-            except Exception as exc:
+            if rag_build_module is None:
                 st.session_state["rag_ready"] = False
-                st.error(f"Error al indexar: {exc}")
+                st.error(
+                    "No se pudo cargar el indexador RAG. En Streamlit Cloud suele ser por dependencia faltante, "
+                    "normalmente python-docx. Verifica requirements.txt y redeploy."
+                )
+            else:
+                try:
+                    rag_build_module.build_index(
+                        collection_name=collection_name,
+                        chunk_size=chunk_size,
+                        overlap=overlap,
+                        rebuild=True,
+                    )
+                    st.session_state["rag_ready"] = True
+                    st.success("Índice reconstruido correctamente.")
+                except Exception as exc:
+                    st.session_state["rag_ready"] = False
+                    st.error(f"Error al indexar: {exc}")
 
     try:
         exists, backend_name = rag_chat_module.collection_exists(collection_name)
