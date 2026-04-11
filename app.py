@@ -530,12 +530,13 @@ with st.sidebar:
 # PESTAÑAS
 # ============================================================
 
-tab_goiania, tab_compare, tab_aspar, tab_standard, tab_rag = st.tabs([
+tab_goiania, tab_compare, tab_aspar, tab_standard, tab_rag, tab_sector = st.tabs([
     "🏁 Goiânia 2026",
     "🚨 ESTÁNDAR vs ASPAR",
     "🏟️ Aspar — Spec Domingo",
     "📘 Estándar Config Moto",
     "🤖 Asistente RAG",
+    "📡 Avances 2016-2026",
 ])
 
 with tab_goiania:
@@ -2062,3 +2063,120 @@ with tab_standard:
                 st.caption("La hoja LISTAS no está disponible o está vacía.")
             else:
                 st.dataframe(df_standard_lists, width="stretch", hide_index=True)
+
+with tab_sector:
+    st.title("📡 Avances Tecnológicos y Proyección Sectorial (2016-2026)")
+    st.markdown(
+        "Las metodologías impulsadas por la investigación en control y simulación han acelerado la "
+        "integración de software avanzado en vehículos comerciales y de competición, consolidando "
+        "ecosistemas conectados, predictivos e inmersivos."
+    )
+
+    t1, t2, t3, t4 = st.columns(4)
+    t1.metric("Periodo analizado", "2016-2026")
+    t2.metric("Ejes tecnológicos", "4")
+    t3.metric("Latencia objetivo", "<100 ms")
+    t4.metric("Variables MAIDS", "~2000/caso")
+
+    st.markdown("---")
+
+    st.subheader("🤖 IA + Grey-box + RL-MPC")
+    st.markdown(
+        "Una de las barreras del MPC tradicional era la carga computacional para modelar en tiempo real "
+        "la degradación térmica del neumático o la adherencia del asfalto. Entre 2024 y 2025, la evolución "
+        "ha migrado hacia RL-MPC y arquitecturas de caja gris que combinan física y datos estocásticos."
+    )
+    st.markdown(
+        "Se confirma que la elección de variables de control sigue siendo crítica incluso con IA avanzada. "
+        "En NMPC, sustituir par de dirección por ángulo de dirección puede inducir oscilaciones y divergencias "
+        "al perder dinámica inercial de la dirección."
+    )
+    st.markdown(
+        "En alta competición y autonomía, se integran NMPC + MHE + Procesos Gaussianos para corregir en "
+        "milisegundos la diferencia entre el modelo interno y la realidad física de la motocicleta."
+    )
+
+    st.markdown("---")
+
+    st.subheader("⚡ Edge AI, RAG/CAG y Telemetría Local")
+    st.markdown(
+        "Para evitar dependencia de latencia cloud, las arquitecturas Edge AI procesan inferencia sobre la moto "
+        "y la telemetría local. Las estrategias híbridas RAG/CAG habilitan detección visual de anomalías a alta "
+        "velocidad y decisiones iterativas con tiempos compatibles con control en curva."
+    )
+
+    st.markdown("---")
+
+    st.subheader("🛡️ ARAS, IoT y Conectividad V2V/V2X")
+    st.markdown(
+        "La teoría de control ya vive en ECUs comerciales: ABS en curva, IMUs de 6 ejes, radares milimétricos, "
+        "tracción avanzada, anti-wheelie, anti-stoppie y suspensión semi-activa coordinada con Ride-by-Wire."
+    )
+    st.markdown(
+        "El mantenimiento predictivo aporta alertas anticipadas sobre frenos, hidráulica y baterías. "
+        "La información se distribuye por OTA en dashboards y cascos HUD/AR."
+    )
+    st.markdown(
+        "La seguridad de V2V/V2X se refuerza con consenso consciente del contexto en VANETs (p. ej. CoCoChain), "
+        "con gobernanza adaptativa tipo blockchain, eficiencia energética y latencias sub-100 ms."
+    )
+
+    st.markdown("---")
+
+    st.subheader("🎮 Simulación HIL Inmersiva (6-DOF)")
+    st.markdown(
+        "Los simuladores HIL de 6 grados de libertad (Gough-Stewart), combinados con VR y chasis sensorizados, "
+        "permiten capturar la biointeracción piloto-moto en tiempo real. Esto mejora la validez psicofisiológica "
+        "frente a plataformas de movimiento reducido."
+    )
+    st.markdown(
+        "Los modelos multicuerpo se acoplan en milisegundos con comandos del piloto para replicar cizalladura "
+        "de neumático, viento lateral y transiciones de contramanillar/dirección directa."
+    )
+
+    st.markdown("---")
+
+    st.subheader("📉 Seguridad Vial y Proyección")
+    st.markdown(
+        "La explotación de bases como MAIDS (más de 920 accidentes, ~2000 variables por caso) en simulación "
+        "inmersiva permite ensayar estrategias de evasión y prevención con soporte V2V."
+    )
+    st.markdown(
+        "La proyección sectorial apunta a algoritmos predictivos híbridos, más robustos, embebidos y auditables, "
+        "con despliegue progresivo desde la competición hasta motocicletas comerciales conectadas."
+    )
+
+    with st.expander("Ver texto base completo de referencia", expanded=False):
+        st.markdown(
+            """
+**Avances Tecnológicos y Proyección Sectorial (2016-2026)**
+
+Las metodologías sentadas por investigadores como Moreno Giner abrieron un cauce analítico que ha propulsado la integración masiva del software de simulación en las infraestructuras de vehículos comerciales, redefiniendo las capacidades mecatrónicas entre los años 2017 y 2026. Al dejar atrás las limitaciones de los modelos clásicos, la industria ha convergido hacia ecosistemas conectados, predictivos y altamente inmersivos.
+
+**Integración de Inteligencia Artificial y Modelos de Caja Gris (Grey-box Modeling)**
+
+Una de las barreras del MPC tradicional radicaba en la dificultad computacional de parametrizar empíricamente la degradación térmica del compuesto del neumático o las variaciones de adherencia del asfalto en tiempo real. Hacia 2024 y 2025, el enfoque ha migrado hacia el Control Predictivo basado en Aprendizaje Automático (RL-MPC) y las arquitecturas de "Caja Gris" que combinan física y datos estocásticos.
+
+Investigaciones de vanguardia han demostrado que la correcta selección de las entradas de control sigue siendo crítica en estos modelos avanzados. Por ejemplo, Hatakeyama y colaboradores (2024) demostraron que al reemplazar el par de dirección (steering torque) por el ángulo de dirección en algoritmos NMPC (Nonlinear Model Predictive Control), se producen oscilaciones excesivas e incluso divergencias en la respuesta debido a la supresión de la dinámica inercial de la dirección. Esto confirma que, incluso en la era de la IA, la física base de control por fuerza es indispensable.
+
+En el ámbito de la alta competición y la conducción autónoma, investigadores como Kebbati (2025) han fusionado el estimador matemático multicuerpo con rutinas de Inteligencia Artificial mediante NMPC acoplado a Estimadores de Horizonte Móvil (MHE) y regresiones de Procesos Gaussianos. Estos algoritmos procesan las mediciones inerciales de la motocicleta en milisegundos, "aprendiendo" paramétricamente la diferencia geométrica entre el modelo interno y la realidad física.
+
+Para soportar la inmensa carga computacional de estos algoritmos en tiempo real sin depender de la latencia de la nube, las investigaciones recientes de Juárez Cádiz proponen la aplicación de principios de optimización estructural para el despliegue de Edge AI (Inteligencia Artificial en el Extremo) directamente en la telemetría de las motocicletas. El uso de arquitecturas de inferencia híbridas de recuperación y caché (RAG/CAG) permite la detección visual de anomalías a alta velocidad y el procesamiento iterativo local, haciendo viable que el control computacional gestione el paso por curva de una moto deportiva con una precisión milimétrica.
+
+**Evolución de los Sistemas Avanzados de Asistencia al Piloto (ARAS) y Conectividad**
+
+La teoría de control en estado estacionario y transitorio, antaño empleada solo para validación en computadoras, reside ahora en las Unidades de Control del Motor (ECUs) de motocicletas comerciales. Los Sistemas Avanzados de Asistencia (ARAS) han evolucionado desde el ABS básico hacia el Control de Conducción Adaptativo (ARC), integrando sensores de ángulo de inclinación, ABS en curva, radares de onda milimétrica y Módulos de Medición Inercial (IMUs) de 6 ejes. Estos controladores embebidos regulan sistemas combinados de tracción y anti-hundimiento (anti-wheelie y anti-stoppie) interconectados al acelerador electrónico (Ride-by-Wire) y actuadores de válvulas de amortiguación semi-activa.
+
+En paralelo, la digitalización ha desencadenado la revolución del "Mantenimiento Predictivo" e Internet de las Cosas (IoT). La Inteligencia Artificial analiza continuamente los datos de los sensores para identificar patrones que señalan fallas potenciales mucho antes de que ocurran, como la fatiga del fluido hidráulico, la salud de las baterías en motos eléctricas o el desgaste de los frenos. El sistema notifica al conductor de forma preventiva a través de infraestructuras Over-The-Air (OTA) proyectadas en displays modulares o cascos conectados con tecnología HUD y realidad aumentada.
+
+La viabilidad y seguridad de estas infraestructuras conectadas, vitales para la comunicación Vehículo-a-Vehículo (V2V) y Vehículo-a-Todo (V2X), se sustentan en la gestión inteligente del contexto en redes VANETs. Protocolos recientes de consenso conscientes del contexto, como CoCoChain, propuestos por Juárez Cádiz, garantizan el intercambio seguro de datos de sensores y previenen vulnerabilidades criptográficas. Mediante una gobernanza adaptativa de Blockchain impulsada por entropía, estos sistemas logran alta eficiencia energética y latencias inferiores a 100 ms (sub-100 ms latency), requisitos indispensables para que las acciones de evasión automatizadas operen con garantías de seguridad.
+
+**Simuladores Inmersivos de Interacción Dinámica (Hardware-in-the-Loop)**
+
+Las limitantes históricas de carecer de una estimación fisiológica del comportamiento pasivo de un piloto vivo también se han abordado magistralmente con la llegada de simuladores hiperinmersivos HIL (Hardware-in-the-Loop). En los últimos años, arquitecturas como el manipulador paralelo Gough-Stewart de 6 grados de libertad (6-DOF) se han combinado con cascos de Realidad Virtual (VR) y chasis sensorizados.
+
+Estas plataformas instrumentan sensores de tensión en múltiples puntos del chasis simulado para capturar la bioimpedancia exacta del peso del piloto y sus interacciones dinámicas en tiempo real. Estudios recientes han demostrado que las configuraciones dinámicas que permiten una transición progresiva entre el contramanillar y la dirección directa (simulando fielmente la inestabilidad de dos ruedas) ofrecen una validez psicofisiológica superior frente a los simuladores de movimiento reducido. Las ecuaciones analíticas del modelo multicuerpo interactúan en milisegundos con los comandos articulares del ser humano, replicando con alta fidelidad factores como la cizalladura de los neumáticos y el viento lateral cruzado.
+
+El avance en estos simuladores resulta ser la piedra angular para desarrollar estrategias de prevención de accidentes. Bases de datos exhaustivas en Europa, como el proyecto MAIDS (Motorcycle Accidents In Depth Study), que documentó a fondo más de 920 accidentes utilizando cerca de 2000 variables por caso, han permitido identificar los escenarios críticos de siniestralidad. Al integrar esta analítica en los simuladores inmersivos, los investigadores pueden ensayar estrategias de evasión de colisión apoyadas en sistemas V2V, representando la última frontera tecnológica para reducir la tasa de siniestralidad de los motoristas frente a turismos y redefiniendo el diseño de los algoritmos de control predictivo del futuro.
+            """
+        )
