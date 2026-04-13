@@ -85,6 +85,33 @@ Plataforma recomendada: Streamlit Community Cloud.
 
 Nota: Vercel no es una buena opción para apps Streamlit porque Streamlit requiere un proceso persistente con WebSockets.
 
+## Publicar con URL de Vercel (Flask Gateway)
+
+Si quieres compartir un enlace de Vercel, este repo ya incluye un gateway Flask:
+
+- `api/index.py`: endpoint Flask para Vercel
+- `vercel.json`: routing para ejecutar `api/index.py`
+
+Funcionamiento:
+
+1. Tu app principal se publica en Streamlit Community Cloud.
+2. Vercel publica un endpoint Flask en tu dominio (`*.vercel.app`).
+3. Ese endpoint redirige automáticamente a la URL pública de Streamlit.
+
+### Pasos
+
+1. Despliega primero la app en Streamlit Cloud y copia la URL pública (ejemplo: `https://xxxxx.streamlit.app`).
+2. En Vercel, importa este mismo repositorio `rubences/DashBoard`.
+3. En la configuración del proyecto en Vercel, añade la variable de entorno:
+Key: `STREAMLIT_PUBLIC_URL`
+Value: `https://tu-app.streamlit.app`
+4. Haz deploy.
+5. Al abrir tu URL de Vercel, redirigirá a Streamlit automáticamente.
+
+### Endpoint de salud
+
+- `GET /health` devuelve estado del gateway Flask.
+
 Preferencias UI persistentes:
 Se guardan automáticamente en `.streamlit/ui_prefs.json`.
 Incluye perfil de vista, filtros, paginación, rol/sesión seleccionados y controles del circuito.
